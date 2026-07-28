@@ -111,6 +111,38 @@ function setTheme(th) {
   Store.d.theme = th; Store.save();
 }
 
+/* ─── анимации ─── */
+const REDUCED = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+/** Появление блоков при скролле. Один наблюдатель, отписка после показа. */
+let _io = null;
+function observeReveals(root) {
+  if (REDUCED) { $$('.reveal', root).forEach(e => e.classList.add('seen')); return; }
+  if (!_io) {
+    _io = new IntersectionObserver(es => {
+      es.forEach(e => { if (e.isIntersecting) { e.target.classList.add('seen'); _io.unobserve(e.target); } });
+    }, { rootMargin: '0px 0px -8% 0px', threshold: .06 });
+  }
+  $$('.reveal:not(.seen)', root).forEach(e => _io.observe(e));
+}
+
+/** Плавный счёт числа. Короткий, только на видимых цифрах. */
+function countUp(el, to, suffix) {
+  if (REDUCED || to === 0) { el.textContent = fmtNum(to) + (suffix || ''); return; }
+  const dur = 700, t0 = performance.now(), from = 0;
+  const step = now => {
+    const p = Math.min(1, (now - t0) / dur);
+    const e = 1 - Math.pow(1 - p, 3);
+    el.textContent = fmtNum(from + (to - from) * e) + (suffix || '');
+    if (p < 1) requestAnimationFrame(step);
+  };
+  requestAnimationFrame(step);
+}
+function fmtNum(n) { return Number.isInteger(n) ? String(Math.round(n)) : (Math.round(n * 10) / 10).toFixed(1); }
+
+/** Тактильный отклик там, где он уместен. */
+function buzz(ms) { try { !REDUCED && navigator.vibrate && navigator.vibrate(ms || 12); } catch (e) {} }
+
 /* ══════════════════ RENDER ══════════════════ */
 function renderAll() {
   buildNav();
@@ -125,6 +157,7 @@ function renderAll() {
 }
 function render(id) {
   ({ today: rToday, year: rYear, weeks: rWeeks, career: rCareer, more: rMore })[id]();
+  observeReveals($('#v-' + id));
 }
 
 /* ─────────── СЕГОДНЯ ─────────── */
@@ -207,7 +240,9 @@ function rToday() {
   $('#v-today').innerHTML = h;
 
   $$('[data-block]').forEach(el => el.onclick = () => {
-    Store.toggleBlock(today, el.dataset.block);
+    const on = Store.toggleBlock(today, el.dataset.block);
+    if (on) { el.classList.add('pulse'); buzz(14); }
+    Sync.schedule();
     rToday(); renderAll();
   });
   $$('[data-timer]').forEach(b => b.onclick = () => startTimer(+b.dataset.timer, b.dataset.tname));
@@ -240,6 +275,7 @@ function startTimer(min, name) {
   stopTimer();
   let left = min * 60;
   $('#tLbl').textContent = name;
+  const box = $('#v-today .timer'); if (box) box.classList.add('run');
   const tick = () => {
     const m = String(Math.floor(left / 60)).padStart(2, '0');
     const s = String(left % 60).padStart(2, '0');
@@ -258,7 +294,10 @@ function startTimer(min, name) {
   tick();
   TIMER = setInterval(tick, 1000);
 }
-function stopTimer() { if (TIMER) { clearInterval(TIMER); TIMER = null; } }
+function stopTimer() {
+  if (TIMER) { clearInterval(TIMER); TIMER = null; }
+  const box = $('#v-today .timer'); if (box) box.classList.remove('run');
+}
 
 /* ─────────── ГОД ─────────── */
 function rYear() {
@@ -296,7 +335,7 @@ function rYear() {
   h += `<div class="section-h"><h2>Кварталы</h2></div>`;
   [1,2,3,4].forEach(q => {
     const Q = QUARTERS[q], s = Store.quarterTotals(q);
-    h += `<div class="card wk q${q}">
+    h += `<div class="card wk q${q} reveal">
       <div class="card-t">
         <div><h3>${Q.code} · ${Q.name}</h3><div class="tiny dim">${Q.range} · ${Q.dates}</div></div>
         <span class="pill q${q}">${s.pct}%</span>
@@ -339,8 +378,22 @@ function rYear() {
     <p class="tiny dim mt" style="margin-bottom:0">Год — это долго. План на 75% за 52 недели кратно лучше плана на 120% за 14 недель и брошенного.</p></div>`;
 
   $('#v-year').innerHTML = h;
+
+  // кольцо и цифры оживают после вставки в DOM
+  requestAnimationFrame(() => {
+    const fill = $('#v-year .ring .fill');
+    if (fill) { fill.style.strokeDashoffset = C; requestAnimationFrame(() => fill.style.strokeDashoffset = C * (1 - t.pct / 100)); }
+    const rt = $('#v-year .ring-txt b'); if (rt) countUp(rt, t.pct, '%');
+    $$('#v-year .stat b').forEach(b => {
+      const n = parseFloat(String(b.textContent).replace(',', '.'));
+      if (!isNaN(n) && String(b.textContent).trim() === String(n)) countUp(b, n);
+    });
+    $$('#v-year .bar > i').forEach(bar => { const w = bar.style.width; bar.style.width = '0%';
+      requestAnimationFrame(() => bar.style.width = w); });
+  });
+
   $$('[data-ms]').forEach(i => i.onchange = () => {
-    Store.setMetric(+i.dataset.ms, i.dataset.mk, i.value); toast('Сохранено');
+    Store.setMetric(+i.dataset.ms, i.dataset.mk, i.value); Sync.schedule(); toast('Сохранено');
   });
 }
 
@@ -384,7 +437,7 @@ function weekCard(w, isNow) {
   const stCls = s.status === 'Закрыта' ? 'ok' : s.status === 'Частично' ? 'warn'
               : s.status === 'Перенесена' ? 'danger' : s.status === 'В работе' ? 'accent' : '';
 
-  return `<div class="card wk q${w.q}${isNow ? ' now' : ''}${isNow ? ' open' : ''}" data-wk="${w.w}">
+  return `<div class="card wk q${w.q}${isNow ? ' now' : ''}${isNow ? ' open' : ''}${isNow ? '' : ' reveal'}" data-wk="${w.w}">
     <div class="wk-h" data-toggle>
       <div class="wk-n">W${w.w}</div>
       <div class="wk-body">
@@ -432,8 +485,9 @@ function bindWeekCard(root) {
   });
   $$('[data-task]', root).forEach(el => el.onclick = () => {
     const n = +el.closest('[data-wk]').dataset.wk;
-    Store.toggleTask(n, +el.dataset.task);
-    el.classList.toggle('on');
+    const added = Store.toggleTask(n, +el.dataset.task);
+    el.classList.toggle('on'); if (added) buzz(10);
+    Sync.schedule();
     const card = el.closest('[data-wk]');
     const w = WEEKS[n - 1], s = Store.week(n);
     const bar = $('.bar > i', card);
@@ -443,19 +497,19 @@ function bindWeekCard(root) {
   });
   $$('[data-f-hours]', root).forEach(i => i.onchange = () => {
     Store.setWeek(+i.getAttribute('data-f-hours'), { hours: i.value === '' ? null : Number(i.value) });
-    toast('Сохранено'); renderAll();
+    Sync.schedule(); toast('Сохранено'); renderAll();
   });
   $$('[data-f-status]', root).forEach(i => i.onchange = () => {
     Store.setWeek(+i.getAttribute('data-f-status'), { status: i.value });
-    toast('Сохранено'); renderAll();
+    Sync.schedule(); toast('Сохранено'); renderAll();
   });
   $$('[data-f-rating]', root).forEach(i => i.onchange = () => {
     Store.setWeek(+i.getAttribute('data-f-rating'), { rating: i.value || null });
-    toast('Сохранено');
+    Sync.schedule(); toast('Сохранено');
   });
   $$('[data-f-notes]', root).forEach(i => i.onchange = () => {
     Store.setWeek(+i.getAttribute('data-f-notes'), { notes: i.value });
-    toast('Сохранено');
+    Sync.schedule(); toast('Сохранено');
   });
 }
 
@@ -467,7 +521,7 @@ function rCareer() {
   PORTFOLIO.forEach(r => {
     const s = Store.repo(r.id);
     const wk = WEEKS[r.week - 1];
-    h += `<div class="card wk q${wk.q}">
+    h += `<div class="card wk q${wk.q} reveal">
       <div class="card-t">
         <div><h3 class="mono" style="font-size:14.5px">${esc(r.name)}</h3>
         <div class="tiny dim">создаётся в W${r.week} · ${esc(r.why)}</div></div>
@@ -533,10 +587,10 @@ function rCareer() {
   $$('[data-repo]').forEach(b => b.onclick = () => {
     const id = +b.dataset.repo, k = b.dataset.rk;
     Store.setRepo(id, { [k]: Store.repo(id)[k] ? 0 : 1 });
-    rCareer(); renderAll();
+    Sync.schedule(); buzz(10); rCareer(); renderAll();
   });
   $$('[data-repo-url]').forEach(i => i.onchange = () => {
-    Store.setRepo(+i.dataset.repoUrl, { url: i.value }); toast('Сохранено');
+    Store.setRepo(+i.dataset.repoUrl, { url: i.value }); Sync.schedule(); toast('Сохранено');
   });
   $('#addApp').onclick = addAppPrompt;
   bindApps();
@@ -569,7 +623,7 @@ function bindApps() {
     if (confirm('Удалить отклик?')) { Store.delApp(+b.dataset.delapp); rCareer(); renderAll(); }
   });
   $$('[data-appst]').forEach(s => s.onchange = () => {
-    Store.updApp(+s.dataset.appst, { status: s.value }); toast('Сохранено'); rCareer();
+    Store.updApp(+s.dataset.appst, { status: s.value }); Sync.schedule(); toast('Сохранено'); rCareer();
   });
 }
 function addAppPrompt() {
@@ -578,7 +632,7 @@ function addAppPrompt() {
   const cat = prompt('Категория:\n' + APP_CATEGORIES.join(' / '), APP_CATEGORIES[0]) || APP_CATEGORIES[0];
   const note = prompt('Заметка (необязательно):') || '';
   Store.addApp({ company, role, cat, note, status: 'Отправлен' });
-  rCareer(); renderAll(); toast('Отклик добавлен');
+  Sync.schedule(); rCareer(); renderAll(); toast('Отклик добавлен');
 }
 
 /* ─────────── ЕЩЁ ─────────── */
@@ -674,8 +728,41 @@ function rMore() {
     ${RULES.map(r => `<div style="padding:9px 0;border-bottom:1px solid var(--border)">
       <b>${esc(r.name)}</b><p class="sm muted" style="margin:2px 0 0">${esc(r.text)}</p></div>`).join('')}</div>`;
 
+  /* ── синхронизация ── */
+  const su = Sync.user;
+  h += `<div class="section-h"><h2>Синхронизация</h2>
+    <span class="row tiny dim" style="gap:6px"><i class="sync-dot ${
+      Sync.state === 'ok' ? 'ok' : Sync.state === 'busy' ? 'busy' : Sync.state === 'err' ? 'err' : ''}"></i>${esc(Sync.label())}</span></div>`;
+
+  if (!Sync.available()) {
+    h += `<div class="card"><p class="sm muted" style="margin:0">Облачная синхронизация не настроена в этой сборке. Прогресс живёт только в этом браузере.</p></div>`;
+  } else if (!su) {
+    h += `<div class="card">
+      <p class="sm muted">Войди одной и той же почтой на Mac и на iPhone — прогресс будет общим. Без входа всё работает как раньше, просто локально.</p>
+      <label class="fld"><span>Email</span><input type="email" id="syEmail" placeholder="you@example.com" autocomplete="username"></label>
+      <label class="fld"><span>Пароль</span><input type="password" id="syPass" placeholder="минимум 6 символов" autocomplete="current-password"></label>
+      <div class="row wrap">
+        <button class="btn primary" id="syIn">Войти</button>
+        <button class="btn" id="syUp">Создать аккаунт</button>
+      </div>
+      <p class="tiny dim mt" style="margin-bottom:0">Пароль уходит только на серверы Supabase — твой собственный проект. Я его не вижу и нигде не сохраняю.</p>
+    </div>`;
+  } else {
+    h += `<div class="card">
+      <div class="row" style="justify-content:space-between">
+        <div><b>${esc(su.email)}</b><div class="tiny dim">${esc(Sync.label())}</div></div>
+        <button class="btn sm" id="syOut">Выйти</button>
+      </div>
+      <div class="row wrap mt">
+        <button class="btn" id="syPush">Отправить в облако</button>
+        <button class="btn" id="syPull">Забрать из облака</button>
+      </div>
+      <p class="tiny dim mt" style="margin-bottom:0">Отправка идёт сама через пару секунд после изменения. Отметки с разных устройств складываются, а не затирают друг друга.</p>
+    </div>`;
+  }
+
   h += `<div class="section-h"><h2>Данные</h2></div><div class="card">
-    <p class="sm muted">Весь прогресс хранится только в этом браузере (localStorage). Никуда не отправляется, но и не синхронизируется между устройствами. <b>Делай бэкап раз в месяц</b> — очистка данных сайта сотрёт всё.</p>
+    <p class="sm muted">Прогресс хранится в этом браузере (localStorage)${su ? ' и дублируется в твой Supabase' : ''}. <b>Делай бэкап раз в месяц</b> — очистка данных сайта сотрёт локальную копию.</p>
     <div class="row wrap mt">
       <button class="btn primary" id="expBtn">Скачать бэкап</button>
       <button class="btn" id="impBtn">Загрузить бэкап</button>
@@ -692,7 +779,7 @@ function rMore() {
   $('#v-more').innerHTML = h;
 
   $$('[data-lang]').forEach(i => i.onchange = () => {
-    Store.setLang(+i.dataset.lang, i.dataset.lk, i.value); toast('Сохранено');
+    Store.setLang(+i.dataset.lang, i.dataset.lk, i.value); Sync.schedule(); toast('Сохранено');
   });
   $$('[data-copy2]').forEach(b => b.onclick = () =>
     navigator.clipboard.writeText(IR_TEMPLATE).then(() => toast('Скопировано'), () => toast('Не удалось')));
@@ -717,6 +804,30 @@ function rMore() {
       Store.reset(); location.reload();
     }
   };
+
+  /* ── обработчики синхронизации ── */
+  const busy = (btn, on) => { if (btn) { btn.disabled = on; btn.textContent = on ? 'Секунду…' : btn.dataset.t; } };
+  const wrap = async (btn, fn, okMsg) => {
+    btn.dataset.t = btn.textContent; busy(btn, true);
+    try { await fn(); toast(okMsg); }
+    catch (e) { alert('Не получилось: ' + (e.message || e)); }
+    finally { busy(btn, false); rMore(); renderAll(); }
+  };
+  const sIn = $('#syIn'), sUp = $('#syUp'), sOut = $('#syOut'), sPush = $('#syPush'), sPull = $('#syPull');
+  if (sIn) sIn.onclick = () => wrap(sIn, async () => {
+    const e = $('#syEmail').value.trim(), p = $('#syPass').value;
+    if (!e || !p) throw new Error('Заполни почту и пароль');
+    await Sync.signIn(e, p);
+  }, 'Вошёл — прогресс синхронизирован');
+  if (sUp) sUp.onclick = () => wrap(sUp, async () => {
+    const e = $('#syEmail').value.trim(), p = $('#syPass').value;
+    if (!e || p.length < 6) throw new Error('Нужна почта и пароль от 6 символов');
+    await Sync.signUp(e, p);
+    await Sync.signIn(e, p).catch(() => {});
+  }, 'Аккаунт создан. Если попросит — подтверди почту');
+  if (sOut) sOut.onclick = () => wrap(sOut, () => Sync.signOut(), 'Вышел');
+  if (sPush) sPush.onclick = () => wrap(sPush, () => Sync.push(), 'Отправлено в облако');
+  if (sPull) sPull.onclick = () => wrap(sPull, () => Sync.pull(), 'Забрано из облака');
 }
 
 function stat(v, l) { return `<div class="stat"><b>${esc(v)}</b><span>${esc(l)}</span></div>`; }
@@ -726,6 +837,12 @@ function card(inner) { return `<div class="card">${inner}</div>`; }
 Store.load();
 document.documentElement.dataset.theme = Store.d.theme || 'dark';
 renderLock();
+
+// синхронизация подключается в фоне и не блокирует интерфейс
+Sync.onchange = () => { if ($('#app').classList.contains('on') && VIEW === 'more') rMore(); };
+Sync.init().catch(e => console.warn('sync init', e));
+// перед закрытием вкладки — успеть отправить накопленное
+window.addEventListener('pagehide', () => { if (Sync.user) Sync.push(); });
 $('#themeBtn').onclick = () => {
   setTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark');
 };

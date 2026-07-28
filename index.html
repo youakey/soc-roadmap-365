@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>SOC Roadmap 365</title>
 <meta name="description" content="Личный трекер годового плана перехода в Junior SOC Analyst">
-<meta name="theme-color" content="#0a0e14" media="(prefers-color-scheme: dark)">
-<meta name="theme-color" content="#f4f6fa" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0a0a0d" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#f3f0ea" media="(prefers-color-scheme: light)">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="SOC 365">
@@ -17,6 +17,8 @@
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
+
+<div class="aurora" aria-hidden="true"><i></i><i></i><i></i></div>
 
 <!-- ══════════ LOCK ══════════ -->
 <div id="lock">
@@ -43,9 +45,7 @@
   <div class="layout">
     <aside class="sidebar">
       <nav class="snav" id="snav"></nav>
-      <div class="sidebar-foot">
-        <div id="sideProgress"></div>
-      </div>
+      <div class="sidebar-foot"><div id="sideProgress"></div></div>
     </aside>
 
     <main>
@@ -62,18 +62,22 @@
 
 <div class="toast" id="toast"></div>
 
-<svg width="0" height="0" style="position:absolute">
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
   <defs>
     <linearGradient id="ringGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%"  stop-color="#4da3ff"/>
-      <stop offset="100%" stop-color="#3fd07d"/>
+      <stop offset="0%"  stop-color="#ffc46b"/>
+      <stop offset="55%" stop-color="#ff8a2b"/>
+      <stop offset="100%" stop-color="#ff6a00"/>
     </linearGradient>
   </defs>
 </svg>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script src="config.js"></script>
 <script src="data-weeks.js"></script>
 <script src="data.js"></script>
 <script src="store.js"></script>
+<script src="sync.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
