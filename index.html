@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>SOC Roadmap 365</title>
+<meta name="description" content="Личный трекер годового плана перехода в Junior SOC Analyst">
+<meta name="theme-color" content="#0a0e14" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#f4f6fa" media="(prefers-color-scheme: light)">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="SOC 365">
+<meta name="robots" content="noindex, nofollow">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon.svg">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<!-- ══════════ LOCK ══════════ -->
+<div id="lock">
+  <div class="lock-card">
+    <div class="lock-logo">🛡️</div>
+    <h1 style="font-size:22px">SOC Roadmap 365</h1>
+    <p class="muted sm" id="lockMsg" style="margin-top:6px">Введи PIN-код</p>
+    <div class="pin-dots" id="pinDots"></div>
+    <div class="pin-pad" id="pinPad"></div>
+    <p class="dim tiny mt2" id="lockHint"></p>
+  </div>
+</div>
+
+<!-- ══════════ APP ══════════ -->
+<div id="app">
+  <header class="topbar">
+    <div class="brand"><span class="brand-mark">🛡️</span><span>SOC 365</span></div>
+    <span class="spacer"></span>
+    <span class="pill accent" id="topWeek">—</span>
+    <button class="icon-btn" id="themeBtn" title="Тема">◐</button>
+    <button class="icon-btn" id="lockBtn" title="Заблокировать">⎋</button>
+  </header>
+
+  <div class="layout">
+    <aside class="sidebar">
+      <nav class="snav" id="snav"></nav>
+      <div class="sidebar-foot">
+        <div id="sideProgress"></div>
+      </div>
+    </aside>
+
+    <main>
+      <section class="view on" id="v-today"></section>
+      <section class="view" id="v-year"></section>
+      <section class="view" id="v-weeks"></section>
+      <section class="view" id="v-career"></section>
+      <section class="view" id="v-more"></section>
+    </main>
+  </div>
+
+  <nav class="tabbar" id="tabbar"></nav>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<svg width="0" height="0" style="position:absolute">
+  <defs>
+    <linearGradient id="ringGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%"  stop-color="#4da3ff"/>
+      <stop offset="100%" stop-color="#3fd07d"/>
+    </linearGradient>
+  </defs>
+</svg>
+
+<script src="data-weeks.js"></script>
+<script src="data.js"></script>
+<script src="store.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

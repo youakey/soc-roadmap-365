@@ -1,0 +1,15 @@
+{
+  "name": "SOC Roadmap 365",
+  "short_name": "SOC 365",
+  "description": "Личный трекер годового плана перехода в Junior SOC Analyst",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0a0e14",
+  "theme_color": "#0a0e14",
+  "lang": "ru",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}
