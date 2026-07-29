@@ -45,25 +45,10 @@ const Sync = {
 
     this.set('busy');
     try {
-      await this.enroll();
       await this.pull(true);
       await this.push();
     } catch (e) {
       this.set('err', e.message || String(e));
-    }
-  },
-
-  /** Запись на трек. Идемпотентно: повторный вход ничего не ломает. */
-  async enroll() {
-    const { error } = await this.sb.from('enrollments').upsert(
-      { user_id: this.user.id, roadmap_id: ROADMAP_ID },
-      { onConflict: 'user_id,roadmap_id', ignoreDuplicates: true }
-    );
-    if (error) {
-      if (/foreign key|violates/i.test(error.message || '')) {
-        throw new Error('Трек ещё не заведён в базе — выполни блок 9 из supabase.sql.');
-      }
-      throw error;
     }
   },
 
@@ -75,7 +60,7 @@ const Sync = {
       const { data, error } = await this.sb
         .from('progress').select('payload, updated_at')
         .eq('user_id', this.user.id)
-        .eq('roadmap_id', ROADMAP_ID)
+        .eq('roadmap_id', ROADMAP)
         .maybeSingle();
       if (error) throw error;
       if (data && data.payload) {
@@ -102,7 +87,7 @@ const Sync = {
       delete payload.ownerId;                  // служебное, в облаке не нужно
       const { error } = await this.sb.from('progress').upsert({
         user_id: this.user.id,
-        roadmap_id: ROADMAP_ID,
+        roadmap_id: ROADMAP,
         payload,
         updated_at: new Date().toISOString()
       }, { onConflict: 'user_id,roadmap_id' });
@@ -124,7 +109,7 @@ const Sync = {
       const t = Store.totals();
       const { error } = await this.sb.from('public_stats').upsert({
         user_id: this.user.id,
-        roadmap_id: ROADMAP_ID,
+        roadmap_id: ROADMAP,
         pct: t.pct,
         hours_fact: t.hoursFact,
         weeks_closed: t.closed,

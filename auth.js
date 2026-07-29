@@ -224,11 +224,9 @@ const Auth = {
     }
 
     if (s === 'signin') {
-      h = `<p class="gate-note">Прогресс привязан к аккаунту, а не к браузеру.
-           Войди той же почтой на Маке и на iPhone — трекер будет один.</p>
-        <label class="fld"><span>Почта</span>
+      h = `<label class="fld"><span>EMAIL</span>
           <input type="email" id="gEmail" autocomplete="username" value="${escA(this.email)}" placeholder="you@example.com"></label>
-        <label class="fld"><span>Пароль</span>
+        <label class="fld"><span>PASSWORD</span>
           <input type="password" id="gPass" autocomplete="current-password" placeholder="••••••••"></label>
         <button class="btn primary wide" id="gDo">Войти</button>
         <div class="gate-links">
@@ -238,15 +236,14 @@ const Auth = {
     }
 
     if (s === 'signup') {
-      h = `<p class="gate-note">Ник виден другим в рейтинге. Почта — никому и никогда.</p>
-        <label class="fld"><span>Ник</span>
+      h = `<label class="fld"><span>NICK</span>
           <input type="text" id="gNick" maxlength="24" autocomplete="nickname" placeholder="от 2 до 24 символов"></label>
-        <label class="fld"><span>Аватар</span></label>
+        <label class="fld"><span>AVATAR</span></label>
         <div class="av-pick">${Object.keys(AVATARS).map(k =>
           `<button class="av${k === this.avatar ? ' on' : ''}" data-av="${k}" title="${k}">${AV_SVG(k)}</button>`).join('')}</div>
-        <label class="fld mt"><span>Почта</span>
+        <label class="fld mt"><span>EMAIL</span>
           <input type="email" id="gEmail" autocomplete="username" value="${escA(this.email)}" placeholder="you@example.com"></label>
-        <label class="fld"><span>Пароль</span>
+        <label class="fld"><span>PASSWORD</span>
           <input type="password" id="gPass" autocomplete="new-password" placeholder="минимум 6 символов"></label>
         <button class="btn primary wide" id="gDo">Создать аккаунт</button>
         <div class="gate-links">
@@ -257,9 +254,7 @@ const Auth = {
     if (s === 'sent') {
       h = `<p class="gate-note">Письмо ушло на <b>${escA(this.email)}</b>.
            Открой ссылку из него — вернёшься сюда уже внутри.</p>
-        <p class="gate-dim">Письма нет через пару минут? Загляни в «Спам»
-           и в «Промоакции». Встроенная почта Supabase отправляет
-           примерно три письма в час.</p>
+        <p class="gate-dim">Нет письма через пару минут — проверь «Спам».</p>
         <button class="btn wide" id="gDo">Отправить письмо ещё раз</button>
         <div class="gate-links">
           <button class="linkbtn" data-go="signin">Вернуться ко входу</button>
@@ -278,9 +273,9 @@ const Auth = {
 
     if (s === 'newpass') {
       h = `<p class="gate-note">Новый пароль — минимум 6 символов.</p>
-        <label class="fld"><span>Новый пароль</span>
+        <label class="fld"><span>NEW PASSWORD</span>
           <input type="password" id="gPass" autocomplete="new-password"></label>
-        <label class="fld"><span>Ещё раз</span>
+        <label class="fld"><span>REPEAT</span>
           <input type="password" id="gPass2" autocomplete="new-password"></label>
         <button class="btn primary wide" id="gDo">Сохранить пароль</button>`;
     }

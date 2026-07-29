@@ -24,8 +24,10 @@ const AUTH_REDIRECT =
     ? location.origin + location.pathname
     : SITE_URL;
 
-/** Идентификатор трека в таблице roadmaps. Пока он один. */
+/** Трек по умолчанию. Реальный активный трек выбирается на экране выбора
+ *  и лежит в ROADMAP — треков может быть несколько. */
 const ROADMAP_ID = 'cyber';
+let ROADMAP = ROADMAP_ID;
 
 /** Синхронизация включается только если оба значения заполнены. */
 const SYNC_ENABLED =

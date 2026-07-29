@@ -172,9 +172,9 @@ const HARDWARE = [
   { name: 'MacBook Air M2 2023 · 8 ГБ · ARM64', role: 'DAILY DRIVER', ok: false,
     text: 'Не подходит как lab host: после macOS остаётся ~4 ГБ (одна лёгкая VM), а ARM64 требует медленной эмуляции x86 для большинства security-дистрибутивов.',
     use: 'Obsidian · VS Code + Python · браузер (THM, LetsDefend) · Wireshark (нативно ARM) · Anki · Docker с лёгкими ARM-контейнерами' },
-  { name: 'ASUS 2019 · 16 ГБ · x86_64', role: 'LAB BOX', ok: true,
-    text: 'Это твой lab box. 16 ГБ x86 — ровно то, что нужно для Wazuh + Windows + Kali. «Подлагивает» почти наверняка из-за HDD.',
-    use: 'Proxmox VE 8 на голое железо (рекомендую) ИЛИ Win11 + VMware Workstation Pro. VM: Ubuntu+Wazuh · Windows Server AD · Kali/REMnux · pfSense' }
+  { name: 'ASUS VivoBook 17 X705QA · A12-9720P · 16 ГБ DDR4 · NVMe 512 ГБ', role: 'LAB BOX', ok: true,
+    text: 'Диск и память вопросов не вызывают: 16 ГБ DDR4 и Kingston NVMe PCIe 512 ГБ. Узкое место сместилось на процессор — A12-9720P это Excavator 2016 года, 4 потока, слабая производительность на ядро, графика Radeon R7 встроенная. AMD-V есть, виртуализация работает, но четыре тяжёлые VM разом он не вывезет.',
+    use: 'Proxmox VE 8 на голое железо. Держи 2 VM одновременно, а не 4: Ubuntu + Wazuh (4 ГБ) плюс одна цель под текущую задачу — Windows Server AD, Kali/REMnux или pfSense. Остальное гаси и поднимай из снапшотов: NVMe делает это быстрым.' }
 ];
 
 const SETUP_CMD = `# Homebrew
@@ -186,7 +186,6 @@ brew install --cask docker`;
 
 const BUDGET = {
   required: [
-    { item: 'SSD 480 ГБ – 1 ТБ для ASUS', when: 'W1', cost: '$25–45 разово', prio: 'Обязательно' },
     { item: 'TryHackMe Premium', when: 'W27–W52, 7 месяцев', cost: '~$14/мес = $98', prio: 'Обязательно' }
   ],
   recommended: [

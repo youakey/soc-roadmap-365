@@ -196,12 +196,13 @@ code, pre, .mono { font-family: var(--mono); }
 .topbar {
   position: sticky; top: 0; z-index: 60; display: flex; align-items: center; gap: 10px;
   padding: max(10px, env(safe-area-inset-top)) 16px 10px;
+  overflow: hidden;                     /* держим свип внутри: иначе он расширяет документ */
   background: color-mix(in srgb, var(--bg) 74%, transparent);
   backdrop-filter: saturate(170%) blur(20px); -webkit-backdrop-filter: saturate(170%) blur(20px);
   border-bottom: 1px solid var(--line);
 }
 .topbar::after {
-  content: ''; position: absolute; left: 0; right: 0; bottom: -1px; height: 1px;
+  content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 1px;
   background: linear-gradient(90deg, transparent, var(--cyan), transparent);
   opacity: .5; animation: sweepLine 7s var(--ease) infinite;
 }
@@ -226,16 +227,22 @@ code, pre, .mono { font-family: var(--mono); }
 
 .layout { display: block; }
 .sidebar { display: none; }
+html { overflow-x: clip; }
 main { max-width: 1060px; margin: 0 auto; padding: 18px 16px calc(var(--tab-h) + 30px); }
 
 .tabbar {
   position: fixed; left: 0; right: 0; bottom: 0; z-index: 70;
-  display: grid; grid-template-columns: repeat(5,1fr);
+  display: grid; grid-template-columns: repeat(6,1fr);
   padding-bottom: env(safe-area-inset-bottom);
   background: color-mix(in srgb, var(--bg) 86%, transparent);
   backdrop-filter: saturate(180%) blur(22px); -webkit-backdrop-filter: saturate(180%) blur(22px);
   border-top: 1px solid var(--line);
+  /* свой композиторный слой — iOS иначе подтормаживает fixed при инерции */
+  transform: translate3d(0,0,0); will-change: transform;
+  transition: transform .28s var(--ease);
 }
+/* читаешь длинную страницу — панель уходит; повёл вверх — вернулась */
+.tabbar.hide { transform: translate3d(0,calc(100% + 2px),0); }
 .tab {
   border: 0; background: none; cursor: pointer; padding: 9px 2px 8px; position: relative;
   display: flex; flex-direction: column; align-items: center; gap: 4px;
@@ -330,6 +337,8 @@ input[type=password],select,textarea {
   transition: border-color .2s, box-shadow .24s, background .2s;
 }
 input[type=number] { font-family: var(--mono); }
+input, select, textarea { max-width: 100%; }
+.grid > *, .row > * { min-width: 0; }
 textarea { resize: vertical; min-height: 70px; line-height: 1.5; }
 input:focus,select:focus,textarea:focus {
   outline: none; border-color: var(--cyan); background: var(--surface);
@@ -561,13 +570,98 @@ details.acc > div { padding: 0 15px 15px; animation: expand .34s var(--ease) bot
   .snav button.on::before { content:''; position:absolute; left:-13px; top:8px; bottom:8px; width:2px;
     background: var(--cyan); box-shadow: 0 0 8px var(--cyan); }
   .tabbar { display: none; }
-  main { padding: 24px 28px 70px; max-width: 880px; margin: 0; --tab-h: 0px; }
+  main { padding: 26px 34px 80px; max-width: none; margin: 0; --tab-h: 0px; }
   .sidebar-foot { margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--line);
     font-family: var(--mono); font-size: 11px; color: var(--txt-3); }
+  /* задел под консольное оформление: приглашение командной строки */
+  .sidebar-foot::before { content: '~/soc-365 $ '; color: var(--cyan); opacity: .7; }
   .toast { bottom: 26px; }
   h1 { font-size: 29px; }
 }
 
+
+/* ══════════ ВЫБОР ТРЕКА ══════════ */
+#picker { display: none; position: fixed; inset: 0; z-index: 190; place-items: center;
+  padding: 24px; background: var(--bg); overflow-y: auto; }
+.picker-card { width: min(720px, 100%); animation: bootIn .7s var(--ease) both; }
+.picker-card .gate-title { text-align: center; }
+.picker-card .gate-note { text-align: center; margin-top: 8px; }
+#pickerBody { display: grid; gap: 12px; margin-top: 20px;
+  grid-template-columns: repeat(auto-fill, minmax(min(300px,100%), 1fr)); }
+.track { display: flex; gap: 14px; text-align: left; align-items: flex-start;
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--r);
+  padding: 17px; box-shadow: var(--sh-2); cursor: pointer; color: var(--txt); position: relative;
+  transition: transform .24s var(--ease), border-color .22s, box-shadow .24s; }
+.track:hover { transform: translateY(-3px); border-color: var(--cyan); box-shadow: var(--glow-soft), var(--sh-3); }
+.track:disabled { opacity: .5; cursor: wait; }
+.track.ghost { cursor: default; background: transparent; border-style: dashed; box-shadow: none; }
+.track.ghost:hover { transform: none; border-color: var(--line-hot); box-shadow: none; }
+.track-ic { flex: none; width: 46px; height: 46px; border-radius: 13px; display: grid; place-items: center;
+  background: var(--surface-2); border: 1px solid var(--line-hot); color: var(--cyan); }
+.track-ic svg { width: 24px; height: 24px; }
+.track-txt { display: block; min-width: 0; }
+.track-txt b { display: block; font-size: 15px; margin-bottom: 3px; }
+.track-txt small { display: block; font-size: 12.5px; color: var(--txt-2); line-height: 1.5; }
+
+/* ══════════ РЕЙТИНГ ══════════ */
+.tbl-wrap { overflow-x: auto; }
+table.rank { width: 100%; }
+table.rank th { font-family: var(--mono); font-size: 10px; letter-spacing: .1em;
+  text-transform: uppercase; color: var(--txt-3); text-align: left; padding-bottom: 6px; }
+table.rank td { padding: 8px 0; border-bottom: 1px solid var(--line); font-size: 13.5px; }
+table.rank tr.me td { color: var(--cyan); }
+table.rank tr.me td:first-child::before { content: '> '; }
+.av.sm2 { width: 26px; height: 26px; border-radius: 8px; }
+.av.sm2 svg { width: 14px; height: 14px; }
+
+/* ══════════ ПОЯВЛЕНИЕ И ПЕРЕЛИВЫ ══════════ */
+/* Вкладка не подменяется мгновенно, а проявляется — это даёт глазу
+   понять, что содержимое сменилось, без «прыжка». */
+.view.on { animation: viewIn .46s var(--ease) both; }
+@keyframes viewIn { from { opacity: 0; transform: translateY(12px) scale(.995); filter: blur(4px); } }
+
+/* сетка недель: одна колонка на телефоне, две-три на большом экране */
+.wk-grid { display: grid; gap: 12px; align-items: start;
+  grid-template-columns: repeat(auto-fill, minmax(min(430px, 100%), 1fr)); }
+.wk-grid .card + .card { margin-top: 0; }
+
+@media (min-width: 880px) {
+  /* заголовки разделов медленно переливаются — единственная «живая» краска в тексте */
+  .section-h h2 {
+    background: linear-gradient(100deg, var(--txt) 18%, var(--cyan) 40%, var(--txt) 62%);
+    background-size: 320% 100%; -webkit-background-clip: text; background-clip: text;
+    -webkit-text-fill-color: transparent; color: transparent;
+    animation: shimmerTxt 9s linear infinite;
+  }
+  @keyframes shimmerTxt { to { background-position: -320% 0; } }
+
+  /* блик, пробегающий по карточке при наведении.
+     Двигаем background-position, а не transform: трансформ вылез бы
+     за карточку и снова расширил документ — ровно тот баг, что чинили. */
+  .card.hud:hover { border-color: color-mix(in srgb, var(--cyan) 38%, transparent); }
+  .card.gleam > .sheen {
+    position: absolute; inset: 0; pointer-events: none; opacity: 0;
+    border-radius: var(--r);
+    background: linear-gradient(104deg, transparent 38%, #22e3d41f 48%, #ffffff14 52%, transparent 62%);
+    background-size: 260% 100%; background-position: 130% 0;
+  }
+  .card.gleam:hover > .sheen { animation: gleamRun 1.05s var(--ease); }
+  @keyframes gleamRun { 0% { opacity: 0; background-position: 130% 0 }
+    18% { opacity: 1 } 100% { opacity: 0; background-position: -30% 0 } }
+
+  /* фон дышит чуть заметнее, когда места на экране много */
+  .env .grid { animation: gridDrift 44s linear infinite alternate; }
+  @keyframes gridDrift { to { transform: translate3d(26px, 18px, 0); } }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .view.on { animation: none; }
+  .section-h h2 { animation: none; -webkit-text-fill-color: currentColor; color: inherit;
+    background: none; }
+  .env .grid { animation: none; }
+}
+
+@media (max-width: 430px) { .g2 { grid-template-columns: 1fr; } }
 @media (max-width: 520px) {
   .g3 { grid-template-columns: 1fr 1fr; }
   main { padding-left: 13px; padding-right: 13px; }
