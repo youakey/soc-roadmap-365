@@ -98,7 +98,25 @@ jobs:
           npx eslint --config eslint.config.mjs \
             app.js auth.js store.js sync.js config.js security.js tools/*.mjs
 
-      # ── 6. Права токена не расширили ────────────────────────
+      # ── 6. Таббар не отклеится снова ────────────────────────
+      # Баг кусал дважды: transform на #app делает его containing block
+      # для position: fixed, и таббар начинает считаться от #app, а не
+      # от экрана — появляется только внизу страницы. Проверка дешёвая,
+      # а руками это не ловится: зависит от того, успела ли анимация.
+      - name: appIn без transform
+        run: |
+          set -uo pipefail
+          block=$(grep -A 1 '@keyframes appIn' styles.css || true)
+          if echo "$block" | grep -qE 'transform|scale\(|filter|perspective'; then
+            echo "::error::В кадре appIn появился transform/filter. #app станет containing block для position: fixed, и таббар на телефоне отклеится. См. §3.5 PROJECT.md."
+            exit 1
+          fi
+          if grep -qE '#app\.on \{[^}]*animation:[^;]*\bboth\b' styles.css; then
+            echo "::error::У #app.on снова fill-mode both."; exit 1
+          fi
+          echo "appIn чист."
+
+      # ── 7. Права токена не расширили ────────────────────────
       - name: Права workflow
         run: |
           set -uo pipefail
