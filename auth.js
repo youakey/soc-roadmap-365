@@ -28,11 +28,11 @@ const AVATARS = {
   terminal: '<rect x="3" y="4.5" width="18" height="15" rx="2"/><path d="M7 9.5l3 2.5-3 2.5M12.5 15h4.5"/>',
   eye:    '<path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3"/>'
 };
-const AV_SVG = k => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${AVATARS[k] || AVATARS.shield}</svg>`;
+const AV_SVG = k => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${own(AVATARS, k, AVATARS.shield)}</svg>`;
 
-const escA = s => String(s == null ? '' : s)
-  .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-  .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+/* Была вторая копия экранирования. Две копии одной защиты расходятся
+   молча, поэтому теперь обе ведут в security.js. */
+const escA = secEsc;
 
 const Auth = {
   sb: null,

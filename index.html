@@ -2,6 +2,49 @@
 <html lang="ru" data-theme="dark">
 <head>
 <meta charset="utf-8">
+
+<!-- ══════════ ПОЛИТИКА БЕЗОПАСНОСТИ КОНТЕНТА ══════════
+     GitHub Pages не отдаёт свои заголовки, поэтому политика живёт в meta.
+     Стоит сразу после charset: meta-CSP действует только на то, что
+     разобрано после неё, — ниже уже нет ни одного тега, который бы
+     остался неприкрытым.
+
+     Про две директивы, которых здесь намеренно нет:
+
+     · frame-ancestors в meta игнорируется браузерами по спецификации,
+       она работает только заголовком. Кликджекинг закрыт фреймбастером
+       в security.js — на статике это единственный доступный способ.
+
+     · require-trusted-types-for 'script' сломал бы весь рендеринг:
+       он построен на шаблонных строках и innerHTML. Это честный долг,
+       записан в §11 PROJECT.md.
+
+     script-src сужен до одного конкретного файла, а не до домена
+     jsdelivr: с него раздаётся весь npm, и разрешить его целиком —
+     почти то же, что не ограничивать вовсе.
+
+     style-src держит 'unsafe-inline' вынужденно: в шаблонах 91 атрибут
+     style=. Вынести их в классы — отдельная работа, тоже в §11. -->
+<meta http-equiv="Content-Security-Policy" content="
+  default-src 'self';
+  base-uri 'none';
+  object-src 'none';
+  form-action 'none';
+  frame-src 'none';
+  child-src 'none';
+  worker-src 'self';
+  manifest-src 'self';
+  script-src 'self' https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.111.0/dist/umd/supabase.min.js;
+  style-src 'self' 'unsafe-inline';
+  img-src 'self' data:;
+  font-src 'self';
+  media-src 'none';
+  connect-src 'self' https://wfjskomrcipjgsaxekny.supabase.co wss://wfjskomrcipjgsaxekny.supabase.co;
+  upgrade-insecure-requests">
+
+<!-- Адрес страницы не утекает третьим сторонам. Supabase реферер не проверяет. -->
+<meta name="referrer" content="no-referrer">
+
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>SOC Roadmap 365</title>
 <meta name="description" content="Личный трекер годового плана перехода в Junior SOC Analyst">
@@ -11,10 +54,10 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="SOC 365">
 <meta name="robots" content="noindex, nofollow">
-<link rel="manifest" href="manifest.webmanifest?v=12">
-<link rel="apple-touch-icon" href="icon.svg?v=12">
-<link rel="icon" href="icon.svg?v=12" type="image/svg+xml">
-<link rel="stylesheet" href="styles.css?v=12">
+<link rel="manifest" href="manifest.webmanifest?v=14">
+<link rel="apple-touch-icon" href="icon.svg?v=14">
+<link rel="icon" href="icon.svg?v=14" type="image/svg+xml">
+<link rel="stylesheet" href="styles.css?v=14">
 </head>
 <body>
 
@@ -99,13 +142,34 @@
   </defs>
 </svg>
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-<script src="config.js?v=12"></script>
-<script src="data-weeks.js?v=12"></script>
-<script src="data.js?v=12"></script>
-<script src="store.js?v=12"></script>
-<script src="auth.js?v=12"></script>
-<script src="sync.js?v=12"></script>
-<script src="app.js?v=12"></script>
+<!-- Первым: фреймбастер должен сработать до отрисовки, а хелперы
+     экранирования нужны раньше любого рендеринга. -->
+<script src="security.js?v=14"></script>
+
+<!-- ЕДИНСТВЕННАЯ ВНЕШНЯЯ ЗАВИСИМОСТЬ — запинена и закрыта хэшем.
+
+     Версия точная, не диапазон: SRI на плавающем @2 уронил бы сайт при
+     следующем релизе supabase-js. Хэш снят с трёх независимых запросов
+     к CDN, все три совпали; файл 210 839 байт, и плавающий @2 на момент
+     пина отдавал ровно его же.
+
+     Подмена файла на стороне CDN теперь не выполнится: браузер сверит
+     sha384 и откажется исполнять. CI сверяет этот хэш с тем, что реально
+     отдаёт CDN, на каждый пуш и раз в неделю по расписанию
+     (.github/workflows/security.yml).
+
+     Обновление версии — одной командой, вручную хэш не переписывать:
+         node tools/pin-dependency.mjs -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.111.0/dist/umd/supabase.min.js"
+        integrity="sha384-fPWur1rx/DE6YtXP/x0MD6dd90RgnVsz5yX/DIg7CcVAnTBZsENWuIcpvVTM39ti"
+        crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+
+<script src="config.js?v=14"></script>
+<script src="data-weeks.js?v=14"></script>
+<script src="data.js?v=14"></script>
+<script src="store.js?v=14"></script>
+<script src="auth.js?v=14"></script>
+<script src="sync.js?v=14"></script>
+<script src="app.js?v=14"></script>
 </body>
 </html>

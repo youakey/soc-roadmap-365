@@ -1,0 +1,121 @@
+# ══════════════════════════════════════════════════════════════
+# Проверки безопасности. ТОЛЬКО проверки, без деплоя.
+#
+# Почему без деплоя. GitHub Pages в этом репозитории собирается из
+# ветки main (Settings → Pages → Deploy from a branch). Если добавить
+# сюда job с pages: write и id-token: write, он будет падать, пока
+# источник Pages не переключён на GitHub Actions, — а переключение
+# ломает текущий рабочий деплой. Готовый deploy-job лежит рядом,
+# в static.yml.disabled: включать вместе с переключением настройки.
+#
+# Права токена урезаны до чтения содержимого. Больше этому workflow
+# ничего не нужно: он не пишет в репозиторий, не комментирует PR,
+# не публикует пакеты.
+# ══════════════════════════════════════════════════════════════
+name: security
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    # раз в неделю: SRI ловит подмену на CDN только если его проверять
+    - cron: '17 5 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: security-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false   # токен не остаётся в .git/config
+
+      # ── 1. Опасные конструкции в DOM ────────────────────────
+      # Статический анализ здесь надёжнее линтера: список короткий,
+      # ложных попаданий нет, а появление любой из этих строк —
+      # повод остановиться и подумать, а не предупреждение в логе.
+      - name: Опасные синки
+        run: |
+          set -uo pipefail
+          PATTERN='\beval\s*\(|new\s+Function\s*\(|document\.write|\.outerHTML\s*=|insertAdjacentHTML|javascript:'
+          if grep -nEr --include='*.js' --include='*.html' "$PATTERN" . ; then
+            echo "::error::Найдены опасные конструкции. Разбирать вручную."
+            exit 1
+          fi
+          echo "Опасных синков нет."
+
+      # ── 2. CSP на месте и не ослаблена ──────────────────────
+      - name: CSP
+        run: |
+          set -uo pipefail
+          f=index.html
+          grep -q 'http-equiv="Content-Security-Policy"' "$f" || { echo "::error::CSP пропала из $f"; exit 1; }
+          for bad in "unsafe-eval" "script-src 'self' 'unsafe-inline'" "default-src \*" "script-src \*"; do
+            if grep -q "$bad" "$f"; then echo "::error::CSP ослаблена: $bad"; exit 1; fi
+          done
+          grep -q "object-src 'none'" "$f" || { echo "::error::object-src 'none' пропал"; exit 1; }
+          grep -q "base-uri 'none'"   "$f" || { echo "::error::base-uri 'none' пропал"; exit 1; }
+          echo "CSP на месте."
+
+      # ── 3. Секреты ──────────────────────────────────────────
+      # Свой скан, без сторонних action: тащить чужой бинарник в CI,
+      # который ищет утечки, — сомнительная сделка. Ключевое здесь —
+      # отличить публикуемый publishable-ключ от service_role.
+      - name: Секреты
+        run: |
+          set -uo pipefail
+          rc=0
+          # service_role JWT: у него в payload "role":"service_role"
+          if grep -rEn --exclude-dir=.git 'service_role|sb_secret_|SUPABASE_SERVICE' . ; then
+            echo "::error::Похоже на service_role-ключ. Он НИКОГДА не должен попадать в репозиторий."; rc=1
+          fi
+          # приватные ключи и типовые токены
+          if grep -rEn --exclude-dir=.git -- '-----BEGIN [A-Z ]*PRIVATE KEY-----|gh[pousr]_[A-Za-z0-9]{16,}|AKIA[0-9A-Z]{16}' . ; then
+            echo "::error::Похоже на приватный ключ или токен."; rc=1
+          fi
+          # legacy anon-JWT: длинный eyJ... в коде тоже стоит заметить
+          if grep -rEn --exclude-dir=.git 'eyJ[A-Za-z0-9_-]{20,}\.eyJ[A-Za-z0-9_-]{20,}' . ; then
+            echo "::warning::Найден JWT в коде. Проверь, что это publishable-ключ, а не service_role."
+          fi
+          exit $rc
+
+      # ── 4. Цепочка поставок: SRI ────────────────────────────
+      # Валит сборку, пока зависимость не запинена и не закрыта хэшем,
+      # и потом — если файл на CDN разошёлся с хэшем в репозитории.
+      - name: SRI внешней зависимости
+        run: node tools/pin-dependency.mjs --check
+
+      # ── 5. ESLint с плагином безопасности ───────────────────
+      - name: ESLint security
+        run: |
+          npm install --no-save --no-audit --no-fund --loglevel=error \
+            eslint@9.13.0 eslint-plugin-security@3.0.1
+          # Сначала прогон с показом предупреждений — он нужен как отчёт в логе.
+          npx eslint --config eslint.config.mjs \
+            app.js auth.js store.js sync.js config.js security.js data.js data-weeks.js tools/*.mjs \
+            --max-warnings 400 || true
+          # Затем прогон, который валит сборку на ошибках (правила из блока error).
+          npx eslint --config eslint.config.mjs \
+            app.js auth.js store.js sync.js config.js security.js tools/*.mjs
+
+      # ── 6. Права токена не расширили ────────────────────────
+      - name: Права workflow
+        run: |
+          set -uo pipefail
+          for f in .github/workflows/*.yml; do
+            if grep -qE '^\s*permissions:\s*write-all' "$f"; then
+              echo "::error::$f просит write-all"; exit 1
+            fi
+          done
+          grep -qE '^permissions:' .github/workflows/security.yml || { echo "::error::нет явного блока permissions"; exit 1; }
+          echo "Права описаны явно."

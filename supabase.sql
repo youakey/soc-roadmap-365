@@ -218,7 +218,182 @@ values
 on conflict (id) do nothing;
 
 
--- ─────────────── 9. ПРОВЕРКА ───────────────
+-- ─────────────── 9. ГРАНИЦЫ ДАННЫХ (аудит безопасности) ───────────────
+-- Блок идемпотентный: только alter/create/drop policy, ни одного drop table (§3.9).
+--
+-- Зачем. Клиент считает агрегаты сам и отправляет их в public_stats через
+-- обычный REST. RLS проверяет, ЧЬЯ строка, но не проверяет, ЧТО в строке.
+-- То есть до этого блока любой вошедший мог одной командой
+--   PATCH /rest/v1/public_stats  {"pct":100,"hours_fact":9999,"streak":9999}
+-- и встать первым в рейтинге. Никакая обработка на клиенте — включая
+-- шифрование localStorage — этот путь не закрывает: запрос идёт мимо
+-- страницы. Границы обязаны стоять на сервере.
+--
+-- Валидация не делает накрутку невозможной: сервер не знает, сидел ли
+-- человек над PCAP. Она делает её бессмысленной — выйти за пределы
+-- физически возможного больше нельзя, а внутри пределов накрутка
+-- не даёт преимущества, ради которого стоило бы возиться.
+
+-- ── 9.1. Приводим существующие строки в границы, иначе ALTER не пройдёт ──
+update public.public_stats s set
+  pct          = least(greatest(coalesce(nullif(s.pct, 'NaN'), 0), 0), 100),
+  hours_fact   = greatest(coalesce(nullif(s.hours_fact, 'NaN'), 0), 0),
+  weeks_closed = greatest(coalesce(s.weeks_closed, 0), 0),
+  tasks_done   = greatest(coalesce(s.tasks_done, 0), 0),
+  streak       = greatest(coalesce(s.streak, 0), 0),
+  current_week = greatest(coalesce(s.current_week, 1), 1)
+where s.pct is null or s.pct = 'NaN'::numeric or s.pct < 0 or s.pct > 100
+   or s.hours_fact is null or s.hours_fact = 'NaN'::numeric or s.hours_fact < 0
+   or s.weeks_closed < 0 or s.tasks_done < 0 or s.streak < 0 or s.current_week < 1;
+
+-- Ник и аватар тоже приводим в рамки: ALTER проверяет существующие строки.
+update public.profiles set
+  nickname = left(btrim(regexp_replace(nickname, '\s+', ' ', 'g')), 24)
+where nickname <> left(btrim(regexp_replace(nickname, '\s+', ' ', 'g')), 24);
+
+update public.profiles set nickname = nickname || '_'
+where char_length(nickname) < 2;
+
+-- Список ключей обязан совпадать с AVATARS в auth.js. Разойдутся —
+-- сервер начнёт отвергать аватар, который клиент считает нормальным.
+update public.profiles set avatar = 'shield'
+where avatar not in ('shield','radar','bolt','rocket','terminal','eye');
+
+-- ── 9.2. Жёсткие рамки на уровне типов ──
+-- numeric в Postgres принимает 'NaN', и NaN = NaN истинно. Поэтому
+-- нужна явная проверка <> 'NaN', иначе NaN проходит любые сравнения.
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'public_stats_sane') then
+    alter table public.public_stats add constraint public_stats_sane check (
+      pct          between 0 and 100 and pct        <> 'NaN'::numeric
+      and hours_fact >= 0            and hours_fact <> 'NaN'::numeric
+      and hours_fact <= 100000
+      and weeks_closed between 0 and 1000
+      and tasks_done   between 0 and 100000
+      and streak       between 0 and 20000
+      and current_week between 1 and 1000
+    );
+  end if;
+
+  if not exists (select 1 from pg_constraint where conname = 'profiles_nickname_shape') then
+    alter table public.profiles add constraint profiles_nickname_shape check (
+      char_length(nickname) between 2 and 24
+      and nickname !~ '[\s]{2,}'
+      and nickname = btrim(nickname)
+    );
+  end if;
+
+  -- Аватар пользователь задаёт сам. Клиент подставляет shield на неизвестный
+  -- ключ, так что дыры нет, но мусору в базе делать нечего.
+  if not exists (select 1 from pg_constraint where conname = 'profiles_avatar_known') then
+    alter table public.profiles add constraint profiles_avatar_known check (
+      avatar in ('shield','radar','bolt','rocket','terminal','eye')
+    );
+  end if;
+end $$;
+
+-- ── 9.3. Кросс-проверка с треком и запрет подделки полей ──
+-- BEFORE-триггер: сам переписывает user_id и updated_at, чтобы клиент
+-- не мог назначить чужую строку или задним числом подвинуть время.
+create or replace function public.public_stats_guard()
+returns trigger
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  r_weeks int;
+  r_hours numeric;
+  r_start date;
+  elapsed int;
+begin
+  -- Владелец строки — только тот, кто пришёл с токеном. RLS это уже
+  -- проверяет; здесь второй рубеж, на случай ошибки в политике.
+  if auth.uid() is not null then
+    new.user_id := auth.uid();
+  end if;
+
+  -- Время ставит сервер. Клиентское updated_at игнорируется: иначе
+  -- в рейтинге можно было бы вечно выглядеть «только что активным».
+  new.updated_at := now();
+
+  select total_weeks, total_hours, start_date
+    into r_weeks, r_hours, r_start
+  from public.roadmaps where id = new.roadmap_id;
+
+  if r_weeks is null then
+    raise exception 'Неизвестный трек: %', new.roadmap_id using errcode = '23503';
+  end if;
+
+  -- Больше недель, чем есть в треке, закрыть нельзя.
+  new.weeks_closed := least(greatest(new.weeks_closed, 0), r_weeks);
+  new.current_week := least(greatest(new.current_week, 1), r_weeks);
+
+  -- Часы: перерабатывать можно, но не в десять раз против плана.
+  new.hours_fact := least(greatest(new.hours_fact, 0), r_hours * 3);
+
+  -- Streak не может быть длиннее, чем трек вообще идёт.
+  elapsed := greatest((current_date - r_start)::int + 1, 1);
+  new.streak := least(greatest(new.streak, 0), elapsed);
+
+  new.pct := least(greatest(new.pct, 0), 100);
+
+  return new;
+end $$;
+
+drop trigger if exists public_stats_guard_biu on public.public_stats;
+create trigger public_stats_guard_biu
+  before insert or update on public.public_stats
+  for each row execute function public.public_stats_guard();
+
+-- ── 9.4. Границы приватного прогресса ──
+-- payload — свободный jsonb. Без верхней границы один аккаунт может
+-- залить в базу сколько угодно. pg_column_size нельзя положить в CHECK
+-- (функция stable, а CHECK требует immutable), поэтому триггер.
+create or replace function public.progress_guard()
+returns trigger
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+begin
+  if auth.uid() is not null then
+    new.user_id := auth.uid();
+  end if;
+  if new.payload is null then
+    new.payload := '{}'::jsonb;
+  end if;
+  if pg_column_size(new.payload) > 1048576 then
+    raise exception 'Слишком большой payload: % байт, предел 1 МиБ',
+      pg_column_size(new.payload) using errcode = '54000';
+  end if;
+  return new;
+end $$;
+
+drop trigger if exists progress_guard_biu on public.progress;
+create trigger progress_guard_biu
+  before insert or update on public.progress
+  for each row execute function public.progress_guard();
+
+-- ── 9.5. Свой трек нельзя сделать публичным ──
+-- Политика «roadmaps insert own» разрешала вставку с is_public = true.
+-- То есть любой вошедший мог опубликовать трек, и он появился бы на
+-- экране выбора у всех остальных. Публикация — решение владельца
+-- проекта, а не пользователя: она делается из SQL Editor.
+drop policy if exists "roadmaps insert own" on public.roadmaps;
+create policy "roadmaps insert own private" on public.roadmaps
+  for insert to authenticated
+  with check (owner_id = auth.uid() and is_public = false);
+
+drop policy if exists "roadmaps update own" on public.roadmaps;
+create policy "roadmaps update own private" on public.roadmaps
+  for update to authenticated
+  using (owner_id = auth.uid())
+  with check (owner_id = auth.uid() and is_public = false);
+
+
+-- ─────────────── 10. ПРОВЕРКА ───────────────
 select tablename, rowsecurity
 from pg_tables
 where schemaname = 'public'
@@ -232,3 +407,19 @@ order by tablename, policyname;
 
 -- трек на месте?
 select id, title, total_weeks from public.roadmaps;
+
+-- границы применились?
+select conname from pg_constraint
+where conname in ('public_stats_sane','profiles_nickname_shape','profiles_avatar_known')
+order by conname;
+
+select tgname from pg_trigger
+where tgname in ('public_stats_guard_biu','progress_guard_biu')
+order by tgname;
+
+-- у всех функций прибит search_path?
+select p.proname, p.prosecdef, p.proconfig
+from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+where n.nspname = 'public'
+  and p.proname in ('handle_new_user','public_stats_guard','progress_guard')
+order by p.proname;

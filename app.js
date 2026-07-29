@@ -4,9 +4,9 @@
 
 const $  = (s, r) => (r || document).querySelector(s);
 const $$ = (s, r) => Array.from((r || document).querySelectorAll(s));
-const esc = s => String(s == null ? '' : s)
-  .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-  .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+/* Экранирование живёт в security.js: одна реализация на весь проект.
+   Здесь только псевдоним, чтобы не править сотню мест вызова. */
+const esc = secEsc;
 
 const S = (d, extra) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${d}${extra||''}</svg>`;
 
@@ -53,9 +53,9 @@ let WEEK_FILTER = 'all';
 /* ══════════════════ SHELL ══════════════════ */
 function buildNav() {
   $('#tabbar').innerHTML = NAV.map(n =>
-    `<button class="tab${n.id === VIEW ? ' on' : ''}" data-go="${n.id}">${ICONS[n.id]}<span>${n.label}</span></button>`).join('');
+    `<button class="tab${n.id === VIEW ? ' on' : ''}" data-go="${n.id}">${own(ICONS, n.id, ICONS.shield)}<span>${n.label}</span></button>`).join('');
   $('#snav').innerHTML = NAV.map(n =>
-    `<button class="${n.id === VIEW ? 'on' : ''}" data-go="${n.id}">${ICONS[n.id]}<span>${n.label}</span></button>`).join('');
+    `<button class="${n.id === VIEW ? 'on' : ''}" data-go="${n.id}">${own(ICONS, n.id, ICONS.shield)}<span>${n.label}</span></button>`).join('');
   $$('#tabbar [data-go], #snav [data-go]').forEach(b => b.onclick = () => go(b.dataset.go));
 }
 const CRUMB = { today:'today', year:'year', weeks:'weeks', career:'career', rank:'rank', more:'more' };
@@ -815,7 +815,7 @@ function rCareer() {
     <span class="tiny dim mono">${ach.filter(a => a.got).length}/${ach.length}</span></div>
     <div class="ach-grid">${ach.map(a => `
       <div class="ach${a.got ? ' got' : ''}">
-        <span class="ach-ic">${ICONS[a.icon] || ICONS.shield}</span>
+        <span class="ach-ic">${own(ICONS, a.icon, ICONS.shield)}</span>
         <span class="ach-txt"><b>${esc(a.name)}</b><small>${esc(a.desc)}</small></span>
       </div>`).join('')}</div>
     <p class="tiny dim mt2">Здесь нет наград за «зашёл три дня подряд». Награда за присутствие обесценивает награду за работу.</p>`;
@@ -911,7 +911,7 @@ function rMore() {
   [1,2,3,4].forEach(q => {
     h += `<details class="acc"><summary><span>${QUARTERS[q].code} · ${QUARTERS[q].name}</span><span class="pill q${q}">${RESOURCES.filter(r => r.q === q).length}</span></summary><div>
       ${RESOURCES.filter(r => r.q === q).map(r => `<div style="padding:8px 0;border-bottom:1px solid var(--border)">
-        <a href="${esc(r.url)}" target="_blank" rel="noopener"><b>${esc(r.name)}</b></a>
+        <a href="${safeHref(r.url)}" target="_blank" rel="noopener noreferrer"><b>${esc(r.name)}</b></a>
         <span class="pill" style="margin-left:6px">${esc(r.price)}</span>
         <div class="tiny muted" style="margin-top:2px">${esc(r.what)}</div></div>`).join('')}
     </div></details>`;

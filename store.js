@@ -32,7 +32,10 @@ const Store = {
   load() {
     try {
       const raw = localStorage.getItem(KEY);
-      this.d = raw ? Object.assign(fresh(), JSON.parse(raw)) : fresh();
+      /* Object.assign по разобранному JSON — это загрязнение прототипа:
+         у ключа "__proto__" есть [[Set]], и Object.assign его вызывает.
+         pickShape переносит только ключи, которые есть в образце. */
+      this.d = raw ? pickShape(fresh(), safeParse(raw)) : fresh();
       delete this.d.pin;     // PIN убран на этапе A — чистим старые сохранения
     } catch (e) {
       console.warn('Не удалось прочитать сохранение, начинаю с чистого', e);
@@ -259,10 +262,17 @@ const Store = {
     a.click();
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
   },
+  /** Импорт — единственное место, куда попадает файл со стороны.
+   *  Разбор через safeParse (выбрасывает прототипные ключи) и перенос
+   *  через pickShape (берёт только известные поля нужного типа).
+   *  Раньше здесь был Object.assign по произвольному объекту. */
   import(text) {
-    const obj = JSON.parse(text);
-    if (typeof obj !== 'object' || obj === null) throw new Error('Не похоже на резервную копию');
-    this.d = Object.assign(fresh(), obj);
+    const obj = safeParse(text);
+    if (!obj || typeof obj !== 'object' || Array.isArray(obj)) {
+      throw new Error('Не похоже на резервную копию');
+    }
+    this.d = pickShape(fresh(), obj);
+    if (!this.d.createdAt) this.d.createdAt = new Date().toISOString();
     this.save();
   },
   reset() { localStorage.removeItem(KEY); this.load(); }
