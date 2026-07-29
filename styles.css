@@ -225,7 +225,7 @@ code, pre, .mono { font-family: var(--mono); }
 
 /* ══════════ ВХОД ══════════ */
 #gate { position: fixed; inset: 0; z-index: 200; display: grid; place-items: center; padding: 24px; background: var(--bg); overflow-y: auto; }
-.gate-card { width: min(360px,100%); text-align: center; animation: bootIn .7s var(--ease) both; }
+.gate-card { width: min(360px,100%); text-align: center; animation: bootIn .7s var(--ease) backwards; }
 @keyframes bootIn { from { opacity: 0; transform: translateY(18px) scale(.96); filter: blur(6px); } }
 .gate-logo {
   width: 74px; height: 74px; margin: 0 auto 18px; border-radius: 20px;
@@ -280,7 +280,14 @@ code, pre, .mono { font-family: var(--mono); }
 
 /* ══════════ SHELL ══════════ */
 #app { display: none; }
-#app.on { display: block; animation: appIn .55s var(--ease) both; }
+/* fill-mode здесь backwards, а не both, и это не косметика.
+   С both браузер после конца анимации продолжает применять её значения,
+   и transform у #app застывает единичной матрицей. Любой transform,
+   кроме none, делает элемент containing block для position: fixed —
+   таббар начинал считаться от #app, а не от экрана, и всплывал только
+   в самом низу страницы. Кадр у анимации один (from), поэтому backwards
+   выглядит ровно так же. Правило общее: у from-анимаций — backwards. */
+#app.on { display: block; animation: appIn .55s var(--ease) backwards; }
 @keyframes appIn { from { opacity: 0; transform: scale(.995); } }
 
 .topbar {
@@ -340,7 +347,7 @@ main { max-width: 1060px; margin: 0 auto; padding: 18px 16px calc(var(--tab-h) +
 .tab.on svg { transform: translateY(-3px); filter: drop-shadow(0 0 7px #22e3d4aa); }
 .tab.on::before { content:''; position:absolute; top:0; left:50%; width:24px; height:2px;
   transform: translateX(-50%); background: var(--cyan); box-shadow: 0 0 10px var(--cyan);
-  animation: tabPop .32s var(--spring) both; }
+  animation: tabPop .32s var(--spring) backwards; }
 @keyframes tabPop { from { transform: translateX(-50%) scaleX(0) } }
 
 /* ══════════ КАРТОЧКИ + HUD ══════════ */
@@ -539,7 +546,7 @@ label.fld > span { display: block; font-family: var(--mono); font-size: 10.5px; 
 .wk-x svg { width: 14px; height: 14px; }
 .wk.open .wk-x { transform: rotate(90deg); color: var(--cyan); }
 .wk-detail { display: none; margin-top: 15px; padding-top: 15px; border-top: 1px solid var(--line); }
-.wk.open .wk-detail { display: block; animation: expand .38s var(--ease) both; }
+.wk.open .wk-detail { display: block; animation: expand .38s var(--ease) backwards; }
 @keyframes expand { from { opacity: 0; transform: translateY(-8px) } }
 .deliv { background: var(--amber-dim); border: 1px solid color-mix(in srgb,var(--amber) 32%,transparent);
   border-radius: var(--r-s); padding: 12px 14px; margin-top: 13px; position: relative; }
@@ -579,7 +586,7 @@ details.acc > summary::-webkit-details-marker { display: none; }
 details.acc > summary::after { content: '+'; font-family: var(--mono); color: var(--cyan);
   transition: transform .28s var(--spring); font-size: 16px; line-height: 1; }
 details.acc[open] > summary::after { transform: rotate(135deg); }
-details.acc > div { padding: 0 15px 15px; animation: expand .34s var(--ease) both; }
+details.acc > div { padding: 0 15px 15px; animation: expand .34s var(--ease) backwards; }
 
 /* ══════════ ТАЙМЕР: HUD-циферблат ══════════
    Кольцо прогресса + луч развёртки + бегущий hex под цифрами.
@@ -672,8 +679,7 @@ details.acc > div { padding: 0 15px 15px; animation: expand .34s var(--ease) bot
 .tadd .tchip.minus { color: var(--txt-3); }
 .tadd .tchip.minus:hover { color: var(--amber); border-color: color-mix(in srgb, var(--amber) 40%, transparent); }
 .tadd .tchip:active { transform: scale(.94); }
-.tadd-hint { font-family: var(--mono); font-size: 9.5px; letter-spacing: .1em;
-  color: var(--txt-3); text-transform: uppercase; margin-top: 8px; opacity: .75; }
+
 
 .empty { text-align: center; padding: 38px 16px; color: var(--txt-3); }
 .empty .ic { opacity: .3; margin-bottom: 10px; }
@@ -689,7 +695,7 @@ details.acc > div { padding: 0 15px 15px; animation: expand .34s var(--ease) bot
 
 .view { display: none; }
 .view.on { display: block; }
-.view.on > * { animation: rise .5s var(--ease) both; }
+.view.on > * { animation: rise .5s var(--ease) backwards; }
 .view.on > *:nth-child(1){animation-delay:.02s} .view.on > *:nth-child(2){animation-delay:.06s}
 .view.on > *:nth-child(3){animation-delay:.1s}  .view.on > *:nth-child(4){animation-delay:.14s}
 .view.on > *:nth-child(5){animation-delay:.18s} .view.on > *:nth-child(6){animation-delay:.22s}
@@ -717,7 +723,7 @@ details.acc > div { padding: 0 15px 15px; animation: expand .34s var(--ease) bot
 /* мини-график активности недели */
 .spark { display: flex; align-items: flex-end; gap: 3px; height: 26px; }
 .spark i { flex: 1; background: var(--line-hot); border-radius: 2px 2px 0 0; min-height: 3px;
-  transform-origin: bottom; animation: sparkUp .5s var(--ease) both; }
+  transform-origin: bottom; animation: sparkUp .5s var(--ease) backwards; }
 .spark i.on { background: var(--cyan); box-shadow: 0 0 8px -2px var(--cyan); }
 @keyframes sparkUp { from { transform: scaleY(0) } }
 
@@ -791,7 +797,7 @@ details.acc > div { padding: 0 15px 15px; animation: expand .34s var(--ease) bot
 /* ══════════ ВЫБОР ТРЕКА ══════════ */
 #picker { display: none; position: fixed; inset: 0; z-index: 190; place-items: center;
   padding: 24px; background: var(--bg); overflow-y: auto; }
-.picker-card { width: min(720px, 100%); animation: bootIn .7s var(--ease) both; }
+.picker-card { width: min(720px, 100%); animation: bootIn .7s var(--ease) backwards; }
 .picker-card .gate-title { text-align: center; }
 .picker-card .gate-note { text-align: center; margin-top: 8px; }
 #pickerBody { display: grid; gap: 12px; margin-top: 20px;
@@ -825,7 +831,7 @@ table.rank tr.me td:first-child::before { content: '> '; }
 /* ══════════ ПОЯВЛЕНИЕ И ПЕРЕЛИВЫ ══════════ */
 /* Вкладка не подменяется мгновенно, а проявляется — это даёт глазу
    понять, что содержимое сменилось, без «прыжка». */
-.view.on { animation: viewIn .46s var(--ease) both; }
+.view.on { animation: viewIn .46s var(--ease) backwards; }
 @keyframes viewIn { from { opacity: 0; transform: translateY(12px) scale(.995); filter: blur(4px); } }
 
 /* сетка недель: одна колонка на телефоне, две-три на большом экране */

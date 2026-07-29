@@ -240,7 +240,6 @@ function rToday() {
         `<button class="btn sm tchip${m < 0 ? ' minus' : ''}" data-tadd="${m}" title="${m < 0 ? 'убрать' : 'добавить'} ${Math.abs(m)} мин">${m < 0 ? '−' : '+'}${Math.abs(m)}м</button>`
       ).join('')}
     </div>
-    <p class="tadd-hint">минуты добавляются на ходу · без блока запустится free run</p>
     <div class="row wrap mt" style="justify-content:center">
       ${blocks.map(b => {
         const mins = (b.id === 'lab' && sess) ? 35 : b.min;
