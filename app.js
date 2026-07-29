@@ -947,19 +947,6 @@ $('#outBtn').onclick = () => {
   if (confirm('LOGOUT?\n\nПрогресс останется в облаке — вернёшься тем же входом.')) Auth.signOut();
 };
 
-/* Нижняя навигация прибита к экрану. Читаешь вниз — уходит,
-   ведёшь вверх — возвращается: пятая часть экрана не съедается зря. */
-let _lastY = 0;
-window.addEventListener('scroll', () => {
-  const tb = $('#tabbar');
-  if (!tb) return;
-  const y = window.scrollY;
-  if (y < 90) tb.classList.remove('hide');
-  else if (y > _lastY + 8) tb.classList.add('hide');
-  else if (y < _lastY - 8) tb.classList.remove('hide');
-  _lastY = y;
-}, { passive: true });
-
 Auth.init().catch(e => {
   console.error('auth init', e);
   Auth.go('signin', '', 'Не удалось подключиться: ' + (e.message || e));

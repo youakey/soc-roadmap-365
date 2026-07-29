@@ -227,22 +227,18 @@ code, pre, .mono { font-family: var(--mono); }
 
 .layout { display: block; }
 .sidebar { display: none; }
-html { overflow-x: clip; }
 main { max-width: 1060px; margin: 0 auto; padding: 18px 16px calc(var(--tab-h) + 30px); }
 
 .tabbar {
   position: fixed; left: 0; right: 0; bottom: 0; z-index: 70;
   display: grid; grid-template-columns: repeat(6,1fr);
   padding-bottom: env(safe-area-inset-bottom);
-  background: color-mix(in srgb, var(--bg) 86%, transparent);
-  backdrop-filter: saturate(180%) blur(22px); -webkit-backdrop-filter: saturate(180%) blur(22px);
+  /* Непрозрачный фон вместо размытия: размытие подложки на fixed-элементе —
+     главный источник рывков при инерционной прокрутке на iOS. */
+  background: var(--bg);
   border-top: 1px solid var(--line);
-  /* свой композиторный слой — iOS иначе подтормаживает fixed при инерции */
-  transform: translate3d(0,0,0); will-change: transform;
-  transition: transform .28s var(--ease);
+  transform: translate3d(0,0,0);   /* свой слой, чтобы не перерисовывался при скролле */
 }
-/* читаешь длинную страницу — панель уходит; повёл вверх — вернулась */
-.tabbar.hide { transform: translate3d(0,calc(100% + 2px),0); }
 .tab {
   border: 0; background: none; cursor: pointer; padding: 9px 2px 8px; position: relative;
   display: flex; flex-direction: column; align-items: center; gap: 4px;
