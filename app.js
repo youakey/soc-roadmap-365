@@ -93,6 +93,7 @@ function unlock() {
   $('#lock').style.display = 'none';
   $('#app').classList.add('on');
   renderAll();
+  decodeHeadings($('#v-' + VIEW));
 }
 function lock() {
   $('#lock').style.display = 'grid';
@@ -114,6 +115,7 @@ function go(id) {
   $$('[data-go]').forEach(b => b.classList.toggle('on', b.dataset.go === id));
   window.scrollTo({ top: 0, behavior: 'instant' });
   render(id);
+  decodeHeadings($('#v-' + id));
 }
 function toast(msg) {
   const t = $('#toast'); t.textContent = msg; t.classList.add('on');
@@ -160,6 +162,8 @@ function decodeText(el) {
   if (REDUCED || !el || el.dataset.decoded) return;
   el.dataset.decoded = '1';
   const target = el.textContent;
+  // страховка: что бы ни случилось с кадрами, текст восстановится
+  setTimeout(() => { if (el.isConnected) el.textContent = target; }, 1200);
   const len = target.length;
   if (len > 40) return;
   let frame = 0;
@@ -202,9 +206,7 @@ function renderAll() {
 }
 function render(id) {
   ({ today: rToday, year: rYear, weeks: rWeeks, career: rCareer, more: rMore })[id]();
-  const root = $('#v-' + id);
-  observeReveals(root);
-  if (id === VIEW) decodeHeadings(root);
+  observeReveals($('#v-' + id));
 }
 
 /* ─────────── СЕГОДНЯ ─────────── */
