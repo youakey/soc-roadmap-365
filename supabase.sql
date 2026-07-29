@@ -205,7 +205,20 @@ create trigger on_auth_user_created
   for each row execute function public.handle_new_user();
 
 
--- ─────────────── 8. ПРОВЕРКА ───────────────
+-- ─────────────── 8. СИД ТРЕКА «КИБЕРБЕЗ» ───────────────
+-- progress, enrollments и public_stats ссылаются на roadmaps по внешнему ключу.
+-- Без этой строки первая же запись прогресса падает с ошибкой FK.
+-- content пока пуст: 52 недели живут в data-weeks.js и мигрируют в базу
+-- отдельным заходом (§3.2 PROJECT.md). owner_id = null — трек общий.
+insert into public.roadmaps
+  (id, title, subtitle, accent, icon, start_date, end_date, total_hours, total_weeks, is_public, sort)
+values
+  ('cyber', 'SOC Roadmap 365', 'Junior SOC Analyst за 52 недели',
+   '#22e3d4', 'shield', '2026-08-03', '2027-08-01', 631, 52, true, 0)
+on conflict (id) do nothing;
+
+
+-- ─────────────── 9. ПРОВЕРКА ───────────────
 select tablename, rowsecurity
 from pg_tables
 where schemaname = 'public'
@@ -216,3 +229,6 @@ select tablename, policyname, cmd
 from pg_policies
 where schemaname = 'public'
 order by tablename, policyname;
+
+-- трек на месте?
+select id, title, total_weeks from public.roadmaps;

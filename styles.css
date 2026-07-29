@@ -133,46 +133,58 @@ code, pre, .mono { font-family: var(--mono); }
 @keyframes blinkCaret { 0%,64% { opacity: 1 } 65%,100% { opacity: .25 } }
 .section-h .rule { flex: 1; height: 1px; background: linear-gradient(90deg, var(--line-hot), transparent); }
 
-/* ══════════ LOCK ══════════ */
-#lock { position: fixed; inset: 0; z-index: 200; display: grid; place-items: center; padding: 24px; background: var(--bg); }
-.lock-card { width: min(340px,100%); text-align: center; animation: bootIn .7s var(--ease) both; }
+/* ══════════ ВХОД ══════════ */
+#gate { position: fixed; inset: 0; z-index: 200; display: grid; place-items: center; padding: 24px; background: var(--bg); overflow-y: auto; }
+.gate-card { width: min(360px,100%); text-align: center; animation: bootIn .7s var(--ease) both; }
 @keyframes bootIn { from { opacity: 0; transform: translateY(18px) scale(.96); filter: blur(6px); } }
-.lock-logo {
+.gate-logo {
   width: 74px; height: 74px; margin: 0 auto 18px; border-radius: 20px;
   display: grid; place-items: center; position: relative;
   background: var(--surface-2); border: 1px solid var(--line-hot);
   box-shadow: var(--glow), var(--sh-2);
 }
-.lock-logo svg { width: 36px; height: 36px; }
+.gate-logo svg { width: 36px; height: 36px; color: var(--cyan); }
 /* вращающееся кольцо-радар вокруг логотипа */
-.lock-logo::before {
+.gate-logo::before {
   content: ''; position: absolute; inset: -9px; border-radius: 26px;
   border: 1px solid transparent; border-top-color: var(--cyan); border-right-color: #22e3d44d;
   animation: spin 3.4s linear infinite;
 }
-.lock-logo::after {
+.gate-logo::after {
   content: ''; position: absolute; inset: -9px; border-radius: 26px;
   border: 1px dashed #22e3d426; animation: spin 14s linear infinite reverse;
 }
 @keyframes spin { to { transform: rotate(360deg) } }
 
-.lock-title { font-family: var(--mono); font-size: 19px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
-.pin-dots { display: flex; gap: 13px; justify-content: center; margin: 20px 0 18px; }
-.pin-dot { width: 11px; height: 11px; border-radius: 3px; border: 1.5px solid var(--txt-3);
-  transition: transform .22s var(--spring), background .2s, border-color .2s, box-shadow .2s; }
-.pin-dot.on { background: var(--cyan); border-color: var(--cyan); transform: scale(1.3) rotate(45deg); box-shadow: 0 0 14px -2px var(--cyan); }
-.pin-pad { display: grid; grid-template-columns: repeat(3,1fr); gap: 10px; }
-.pin-key {
-  aspect-ratio: 1.6; border: 1px solid var(--line); border-radius: var(--r);
-  background: var(--surface); color: var(--txt); font-family: var(--mono);
-  font-size: 20px; font-weight: 600; cursor: pointer; display: grid; place-items: center;
-  box-shadow: var(--sh-1); position: relative; overflow: hidden;
-  transition: transform .13s var(--ease), border-color .18s, color .18s;
+.gate-title { font-family: var(--mono); font-size: 19px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
+#gateBody { margin-top: 18px; text-align: left; }
+.gate-note { font-size: 13px; line-height: 1.55; color: var(--txt-2); margin: 0 0 16px; }
+.gate-dim  { font-size: 11.5px; line-height: 1.55; color: var(--txt-3); margin: -6px 0 16px; }
+.gate-ok, .gate-err {
+  font-size: 12.5px; line-height: 1.5; margin: 0 0 14px; padding: 10px 12px;
+  border-radius: var(--r-s); border: 1px solid var(--line);
+  background: var(--surface-2);
 }
-.pin-key:hover { border-color: var(--line-hot); color: var(--cyan); }
-.pin-key:active { transform: scale(.93); border-color: var(--cyan); box-shadow: var(--glow); }
-.pin-key.ghost { background: transparent; border-color: transparent; box-shadow: none; font-size: 15px; color: var(--txt-2); }
-#lock.shake .lock-card { animation: shake .45s; }
+.gate-ok  { color: var(--cyan); border-color: color-mix(in srgb, var(--cyan) 34%, transparent); }
+.gate-err { color: var(--red);  border-color: color-mix(in srgb, var(--red) 40%, transparent); }
+.btn.wide { width: 100%; justify-content: center; }
+.gate-links { display: flex; justify-content: space-between; gap: 12px; margin-top: 14px; }
+.linkbtn {
+  background: none; border: 0; padding: 2px 0; cursor: pointer;
+  font-family: var(--sans); font-size: 12px; color: var(--txt-3);
+  text-decoration: underline; text-underline-offset: 3px; transition: color .18s;
+}
+.linkbtn:hover { color: var(--cyan); }
+.av-pick { display: flex; flex-wrap: wrap; gap: 8px; margin: -4px 0 4px; }
+.av {
+  width: 44px; height: 44px; border-radius: 13px; display: grid; place-items: center;
+  background: var(--surface-2); border: 1px solid var(--line); color: var(--txt-3);
+  cursor: pointer; transition: transform .16s var(--spring), border-color .2s, color .2s, box-shadow .24s;
+}
+.av svg { width: 22px; height: 22px; }
+.av:hover { color: var(--txt); border-color: var(--line-hot); }
+.av.on { color: var(--cyan); border-color: var(--cyan); box-shadow: var(--glow); transform: translateY(-2px); }
+#gate.shake .gate-card { animation: shake .45s; }
 @keyframes shake { 0%,100%{transform:translateX(0)} 18%{transform:translateX(-11px)}
   38%{transform:translateX(11px)} 58%{transform:translateX(-7px)} 78%{transform:translateX(7px)} }
 

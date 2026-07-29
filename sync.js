@@ -1,28 +1,33 @@
 /* ============================================================
-   sync.js — синхронизация прогресса между устройствами
-   через Supabase (Postgres + Auth + RLS).
+   sync.js — прогресс между устройствами через Supabase.
 
-   Как устроено:
-   · Работает офлайн-первым: источник истины — localStorage.
-     Без сети и без входа приложение работает как раньше.
-   · После входа прогресс отправляется в облако и подтягивается
-     на других устройствах.
-   · Слияние по времени изменения: у каждой записи есть
-     updated_at, берётся более свежая версия. Внутри данных
-     дни/недели сливаются по ключам, чтобы отметки с телефона
-     не затирали отметки с ноутбука.
+   Что изменилось на этапе A:
+   · Аккаунт обязателен. Клиент и сессию держит auth.js,
+     здесь только обмен данными.
+   · Схема v2: ключ прогресса — пара (user_id, roadmap_id),
+     а не один user_id. Один аккаунт может вести несколько треков.
+   · localStorage больше не источник истины, а кеш для офлайна:
+     при входе облако вливается в локальную копию, локальная
+     уходит обратно. Слияние, а не затирание — отметки с телефона
+     не сносят отметки с ноутбука.
+   · В public_stats уходят только агрегаты для будущего рейтинга.
+     Заметок, блокеров и откликов там нет физически — это
+     разделение на уровне таблиц, см. §3.1 PROJECT.md.
    ============================================================ */
 
 const Sync = {
-  sb: null,
-  user: null,
   state: 'off',        // off | ready | busy | ok | err
   lastError: '',
   lastAt: null,
   _timer: null,
   onchange: null,
 
-  available() { return typeof SYNC_ENABLED !== 'undefined' && SYNC_ENABLED && typeof window.supabase !== 'undefined'; },
+  get sb()   { return Auth.sb; },
+  get user() { return Auth.user; },
+
+  available() {
+    return typeof SYNC_ENABLED !== 'undefined' && SYNC_ENABLED && !!Auth.sb;
+  },
 
   set(state, err) {
     this.state = state;
@@ -30,44 +35,36 @@ const Sync = {
     if (this.onchange) this.onchange();
   },
 
+  /** Вызывается после входа. Чужой локальный кеш не показываем. */
   async init() {
-    if (!this.available()) { this.set('off'); return; }
+    if (!this.available() || !this.user) { this.set('off'); return; }
+
+    if (Store.d.ownerId && Store.d.ownerId !== this.user.id) Store.reset();
+    Store.d.ownerId = this.user.id;
+    Store.save();
+
+    this.set('busy');
     try {
-      this.sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-        auth: { persistSession: true, autoRefreshToken: true }
-      });
-      const { data } = await this.sb.auth.getSession();
-      this.user = data && data.session ? data.session.user : null;
-      this.set(this.user ? 'ready' : 'off');
-      this.sb.auth.onAuthStateChange((_e, session) => {
-        this.user = session ? session.user : null;
-        this.set(this.user ? 'ready' : 'off');
-      });
-      if (this.user) await this.pull(true);
+      await this.enroll();
+      await this.pull(true);
+      await this.push();
     } catch (e) {
       this.set('err', e.message || String(e));
     }
   },
 
-  async signUp(email, password) {
-    const { data, error } = await this.sb.auth.signUp({ email, password });
-    if (error) throw error;
-    return data;
-  },
-
-  async signIn(email, password) {
-    const { data, error } = await this.sb.auth.signInWithPassword({ email, password });
-    if (error) throw error;
-    this.user = data.user;
-    this.set('ready');
-    await this.pull(true);
-    return data;
-  },
-
-  async signOut() {
-    await this.sb.auth.signOut();
-    this.user = null;
-    this.set('off');
+  /** Запись на трек. Идемпотентно: повторный вход ничего не ломает. */
+  async enroll() {
+    const { error } = await this.sb.from('enrollments').upsert(
+      { user_id: this.user.id, roadmap_id: ROADMAP_ID },
+      { onConflict: 'user_id,roadmap_id', ignoreDuplicates: true }
+    );
+    if (error) {
+      if (/foreign key|violates/i.test(error.message || '')) {
+        throw new Error('Трек ещё не заведён в базе — выполни блок 9 из supabase.sql.');
+      }
+      throw error;
+    }
   },
 
   /** Забрать облачную версию и слить с локальной. */
@@ -77,10 +74,13 @@ const Sync = {
     try {
       const { data, error } = await this.sb
         .from('progress').select('payload, updated_at')
-        .eq('user_id', this.user.id).maybeSingle();
+        .eq('user_id', this.user.id)
+        .eq('roadmap_id', ROADMAP_ID)
+        .maybeSingle();
       if (error) throw error;
       if (data && data.payload) {
         Store.d = mergeState(Store.d, data.payload);
+        Store.d.ownerId = this.user.id;
         Store.save();
       }
       this.lastAt = new Date();
@@ -99,19 +99,43 @@ const Sync = {
     this.set('busy');
     try {
       const payload = Object.assign({}, Store.d);
-      delete payload.pin;                      // PIN остаётся только на устройстве
+      delete payload.ownerId;                  // служебное, в облаке не нужно
       const { error } = await this.sb.from('progress').upsert({
         user_id: this.user.id,
+        roadmap_id: ROADMAP_ID,
         payload,
         updated_at: new Date().toISOString()
-      }, { onConflict: 'user_id' });
+      }, { onConflict: 'user_id,roadmap_id' });
       if (error) throw error;
       this.lastAt = new Date();
       this.set('ok', '');
+      this.pushStats();
       return true;
     } catch (e) {
       this.set('err', e.message || String(e));
       return false;
+    }
+  },
+
+  /** Агрегаты для рейтинга. Не критично: упало — прогресс всё равно сохранён. */
+  async pushStats() {
+    if (!this.user || typeof Store.totals !== 'function') return;
+    try {
+      const t = Store.totals();
+      const { error } = await this.sb.from('public_stats').upsert({
+        user_id: this.user.id,
+        roadmap_id: ROADMAP_ID,
+        pct: t.pct,
+        hours_fact: t.hoursFact,
+        weeks_closed: t.closed,
+        tasks_done: t.tasksDone,
+        streak: t.streak,
+        current_week: typeof currentWeek === 'function' ? currentWeek() : 1,
+        updated_at: new Date().toISOString()
+      }, { onConflict: 'user_id,roadmap_id' });
+      if (error) console.warn('public_stats', error.message);
+    } catch (e) {
+      console.warn('public_stats', e);
     }
   },
 
@@ -124,7 +148,7 @@ const Sync = {
 
   label() {
     if (!this.available()) return 'синхронизация не настроена';
-    if (!this.user) return 'не вошёл — данные только на этом устройстве';
+    if (!this.user) return 'нет входа';
     switch (this.state) {
       case 'busy': return 'синхронизирую…';
       case 'err':  return 'ошибка: ' + this.lastError;
@@ -169,7 +193,6 @@ function mergeState(local, remote) {
   out.apps = Object.values(byId).sort((a, b) => a.id - b.id);
 
   out.theme = local.theme || remote.theme || 'dark';
-  out.pin = local.pin;                        // PIN никогда не приходит из облака
   out.createdAt = remote.createdAt || local.createdAt;
   return out;
 }

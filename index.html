@@ -12,9 +12,9 @@
 <meta name="apple-mobile-web-app-title" content="SOC 365">
 <meta name="robots" content="noindex, nofollow">
 <link rel="manifest" href="manifest.webmanifest">
-<link rel="apple-touch-icon" href="icon.svg?v=5">
-<link rel="icon" href="icon.svg?v=5" type="image/svg+xml">
-<link rel="stylesheet" href="styles.css?v=5">
+<link rel="apple-touch-icon" href="icon.svg?v=6">
+<link rel="icon" href="icon.svg?v=6" type="image/svg+xml">
+<link rel="stylesheet" href="styles.css?v=6">
 </head>
 <body>
 
@@ -24,15 +24,12 @@
   <div class="scan"></div>
 </div>
 
-<!-- ══════════ LOCK ══════════ -->
-<div id="lock">
-  <div class="lock-card">
-    <div class="lock-logo" id="lockLogo"></div>
-    <h1 class="lock-title">SOC&nbsp;ROADMAP&nbsp;365</h1>
-    <p class="muted sm" id="lockMsg" style="margin-top:6px">Введи PIN-код</p>
-    <div class="pin-dots" id="pinDots"></div>
-    <div class="pin-pad" id="pinPad"></div>
-    <p class="dim tiny mt2" id="lockHint"></p>
+<!-- ══════════ ВХОД ══════════ -->
+<div id="gate">
+  <div class="gate-card">
+    <div class="gate-logo" id="gateLogo"></div>
+    <h1 class="gate-title">SOC&nbsp;ROADMAP&nbsp;365</h1>
+    <div id="gateBody"><p class="gate-note">Проверяю сессию…</p></div>
   </div>
 </div>
 
@@ -43,7 +40,7 @@
     <span class="spacer"></span>
     <span class="pill accent" id="topWeek">—</span>
     <button class="icon-btn" id="themeBtn" title="Тема"></button>
-    <button class="icon-btn" id="lockBtn" title="Заблокировать"></button>
+    <button class="icon-btn" id="outBtn" title="Выйти из аккаунта"></button>
   </header>
 
   <div class="layout">
@@ -77,11 +74,12 @@
 </svg>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-<script src="config.js?v=5"></script>
-<script src="data-weeks.js?v=5"></script>
-<script src="data.js?v=5"></script>
-<script src="store.js?v=5"></script>
-<script src="sync.js?v=5"></script>
-<script src="app.js?v=5"></script>
+<script src="config.js?v=6"></script>
+<script src="data-weeks.js?v=6"></script>
+<script src="data.js?v=6"></script>
+<script src="store.js?v=6"></script>
+<script src="auth.js?v=6"></script>
+<script src="sync.js?v=6"></script>
+<script src="app.js?v=6"></script>
 </body>
 </html>

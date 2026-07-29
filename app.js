@@ -20,7 +20,8 @@ const ICONS = {
   check:  S('<path d="M4.5 12.5l4.5 4.5L19.5 6.5"/>'),
   chev:   S('<path d="M9 5l7 7-7 7"/>'),
   theme:  S('<circle cx="12" cy="12" r="8.5"/><path d="M12 3.5v17" /><path d="M12 3.5a8.5 8.5 0 0 1 0 17z" fill="currentColor" stroke="none"/>'),
-  lock:   S('<rect x="4.5" y="10.5" width="15" height="9.5" rx="2"/><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3"/><circle cx="12" cy="15" r="1.2" fill="currentColor" stroke="none"/>'),
+  out:    S('<path d="M14 20.5H6.5A1.5 1.5 0 0 1 5 19V5a1.5 1.5 0 0 1 1.5-1.5H14"/><path d="M17 15.5l3.5-3.5L17 8.5"/><path d="M20 12H9.5"/>'),
+  user:   S('<circle cx="12" cy="8.5" r="3.7"/><path d="M4.8 20c.7-3.6 3.7-5.7 7.2-5.7s6.5 2.1 7.2 5.7"/>'),
   rocket: S('<path d="M12 3c3.5 2 5.5 5.5 5.5 9.5L12 18l-5.5-5.5C6.5 8.5 8.5 5 12 3z"/><circle cx="12" cy="10" r="1.8"/><path d="M8.5 17c-1.5.6-2 2-2 4 2 0 3.4-.5 4-2M15.5 17c1.5.6 2 2 2 4-2 0-3.4-.5-4-2"/>'),
   timer:  S('<circle cx="12" cy="13.5" r="7.5"/><path d="M12 9.5v4l2.5 1.5"/><path d="M9.5 2.5h5"/>'),
   inbox:  S('<path d="M3.5 13.5L6 5.5h12l2.5 8"/><path d="M3.5 13.5h4l1.2 2.5h6.6l1.2-2.5h4v5a1.5 1.5 0 0 1-1.5 1.5h-14A1.5 1.5 0 0 1 3.5 18.5z"/>'),
@@ -40,79 +41,18 @@ let VIEW = 'today';
 let WEEK_FILTER = 'all';
 let TIMER = null;
 
-/* ══════════════════ PIN ══════════════════ */
-let pinBuf = '';
-
-function renderLock() {
-  const first = !Store.d.pin;
-  $('#lockMsg').textContent = first ? 'Придумай PIN из 4 цифр' : 'Введи PIN-код';
-  $('#lockHint').innerHTML = first
-    ? 'PIN защищает страницу от случайных глаз.<br>Он хранится в твоём браузере и никуда не отправляется.'
-    : 'Забыл PIN? Открой сайт в приватном окне —<br>сбросится вместе с прогрессом.';
-  renderDots();
-  const pad = $('#pinPad');
-  pad.innerHTML = '';
-  [1,2,3,4,5,6,7,8,9].forEach(n => pad.appendChild(key(n)));
-  pad.appendChild(ghost(''));
-  pad.appendChild(key(0));
-  pad.appendChild(ghost('⌫', () => { pinBuf = pinBuf.slice(0, -1); renderDots(); }));
-
-  function key(n) {
-    const b = document.createElement('button');
-    b.className = 'pin-key'; b.textContent = n;
-    b.onclick = () => press(String(n));
-    return b;
-  }
-  function ghost(t, fn) {
-    const b = document.createElement('button');
-    b.className = 'pin-key ghost'; b.textContent = t;
-    if (fn) b.onclick = fn; else b.style.visibility = 'hidden';
-    return b;
-  }
-}
-function renderDots() {
-  $('#pinDots').innerHTML = [0,1,2,3]
-    .map(i => `<div class="pin-dot${i < pinBuf.length ? ' on' : ''}"></div>`).join('');
-}
-function press(n) {
-  if (pinBuf.length >= 4) return;
-  pinBuf += n; renderDots();
-  if (pinBuf.length === 4) setTimeout(submitPin, 160);
-}
-function submitPin() {
-  if (!Store.d.pin) {
-    Store.d.pin = pinBuf; Store.save(); pinBuf = ''; unlock();
-  } else if (pinBuf === Store.d.pin) {
-    pinBuf = ''; unlock();
-  } else {
-    const l = $('#lock'); l.classList.add('shake');
-    setTimeout(() => { l.classList.remove('shake'); pinBuf = ''; renderDots(); }, 420);
-  }
-}
-function unlock() {
-  $('#lock').style.display = 'none';
-  $('#app').classList.add('on');
-  renderAll();
-  decodeHeadings($('#v-' + VIEW));
-}
-function lock() {
-  $('#lock').style.display = 'grid';
-  $('#app').classList.remove('on');
-  pinBuf = ''; renderLock();
-}
-
 /* ══════════════════ SHELL ══════════════════ */
 function buildNav() {
   $('#tabbar').innerHTML = NAV.map(n =>
     `<button class="tab${n.id === VIEW ? ' on' : ''}" data-go="${n.id}">${ICONS[n.id]}<span>${n.label}</span></button>`).join('');
   $('#snav').innerHTML = NAV.map(n =>
     `<button class="${n.id === VIEW ? 'on' : ''}" data-go="${n.id}">${ICONS[n.id]}<span>${n.label}</span></button>`).join('');
-  $$('[data-go]').forEach(b => b.onclick = () => go(b.dataset.go));
+  $$('#tabbar [data-go], #snav [data-go]').forEach(b => b.onclick = () => go(b.dataset.go));
 }
 function go(id) {
   VIEW = id;
   $$('.view').forEach(v => v.classList.toggle('on', v.id === 'v-' + id));
-  $$('[data-go]').forEach(b => b.classList.toggle('on', b.dataset.go === id));
+  $$('#tabbar [data-go], #snav [data-go]').forEach(b => b.classList.toggle('on', b.dataset.go === id));
   window.scrollTo({ top: 0, behavior: 'instant' });
   render(id);
   decodeHeadings($('#v-' + id));
@@ -783,48 +723,44 @@ function rMore() {
     ${RULES.map(r => `<div style="padding:9px 0;border-bottom:1px solid var(--border)">
       <b>${esc(r.name)}</b><p class="sm muted" style="margin:2px 0 0">${esc(r.text)}</p></div>`).join('')}</div>`;
 
-  /* ── синхронизация ── */
+  /* ── аккаунт и синхронизация ── */
   const su = Sync.user;
-  h += `<div class="section-h"><h2>Синхронизация</h2><span class="rule"></span><span class="row tiny dim" style="gap:6px"><i class="sync-dot ${
+  const prof = Auth.profile || {};
+  h += `<div class="section-h"><h2>Аккаунт</h2><span class="rule"></span><span class="row tiny dim" style="gap:6px"><i class="sync-dot ${
       Sync.state === 'ok' ? 'ok' : Sync.state === 'busy' ? 'busy' : Sync.state === 'err' ? 'err' : ''}"></i>${esc(Sync.label())}</span></div>`;
 
-  if (!Sync.available()) {
-    h += `<div class="card"><p class="sm muted" style="margin:0">Облачная синхронизация не настроена в этой сборке. Прогресс живёт только в этом браузере.</p></div>`;
-  } else if (!su) {
+  if (su) {
     h += `<div class="card">
-      <p class="sm muted">Войди одной и той же почтой на Mac и на iPhone — прогресс будет общим. Без входа всё работает как раньше, просто локально.</p>
-      <label class="fld"><span>Email</span><input type="email" id="syEmail" placeholder="you@example.com" autocomplete="username"></label>
-      <label class="fld"><span>Пароль</span><input type="password" id="syPass" placeholder="минимум 6 символов" autocomplete="current-password"></label>
-      <div class="row wrap">
-        <button class="btn primary" id="syIn">Войти</button>
-        <button class="btn" id="syUp">Создать аккаунт</button>
-      </div>
-      <p class="tiny dim mt" style="margin-bottom:0">Пароль уходит только на серверы Supabase — твой собственный проект. Я его не вижу и нигде не сохраняю.</p>
-    </div>`;
-  } else {
-    h += `<div class="card">
-      <div class="row" style="justify-content:space-between">
-        <div><b>${esc(su.email)}</b><div class="tiny dim">${esc(Sync.label())}</div></div>
+      <div class="row" style="justify-content:space-between;align-items:flex-start">
+        <div class="row" style="gap:11px">
+          <span class="av on" style="cursor:default">${AV_SVG(prof.avatar || 'shield')}</span>
+          <div>
+            <b>${esc(prof.nickname || '—')}</b>
+            <div class="tiny dim">${esc(su.email)}</div>
+          </div>
+        </div>
         <button class="btn sm" id="syOut">Выйти</button>
       </div>
+      <p class="sm muted mt">Прогресс привязан к аккаунту. Войди этой же почтой на другом устройстве — трекер будет один. Отметки складываются, а не затирают друг друга.</p>
       <div class="row wrap mt">
         <button class="btn" id="syPush">Отправить в облако</button>
         <button class="btn" id="syPull">Забрать из облака</button>
       </div>
-      <p class="tiny dim mt" style="margin-bottom:0">Отправка идёт сама через пару секунд после изменения. Отметки с разных устройств складываются, а не затирают друг друга.</p>
+      <p class="tiny dim mt" style="margin-bottom:0">Отправка идёт сама через пару секунд после изменения. В рейтинг уходят только цифры: процент, часы, недели, streak. Заметки, блокеры и отклики не покидают твою строку — они лежат в другой таблице.</p>
     </div>`;
+  } else {
+    h += `<div class="card"><p class="sm muted" style="margin:0">Сессия потерялась. Перезагрузи страницу и войди заново.</p></div>`;
   }
 
   h += `<div class="section-h"><h2>Данные</h2><span class="rule"></span></div><div class="card">
-    <p class="sm muted">Прогресс хранится в этом браузере (localStorage)${su ? ' и дублируется в твой Supabase' : ''}. <b>Делай бэкап раз в месяц</b> — очистка данных сайта сотрёт локальную копию.</p>
+    <p class="sm muted">Прогресс живёт в твоём Supabase, а в браузере лежит его копия для офлайна. <b>Бэкап раз в месяц</b> всё равно стоит делать — от собственной ошибки он спасает лучше любого сервера.</p>
     <div class="row wrap mt">
       <button class="btn primary" id="expBtn">Скачать бэкап</button>
       <button class="btn" id="impBtn">Загрузить бэкап</button>
-      <button class="btn" id="pinBtn">Сменить PIN</button>
       <button class="btn danger" id="resetBtn">Сбросить всё</button>
     </div>
     <input type="file" id="impFile" accept="application/json" style="display:none">
-    <p class="tiny dim mt" style="margin-bottom:0">Синхронизация Mac ↔ iPhone: скачай бэкап на Mac → отправь себе в Telegram → загрузи на телефоне.</p>
+    <p class="tiny dim mt" style="margin-bottom:0">«Сбросить всё» стирает и локальную копию, и облачную — при следующей отправке пустое состояние уедет на сервер.</p>
   </div>`;
 
   h += `<p class="tiny dim center mt2">SOC Roadmap 365 · старт ${fmtRU(META.start)} · финиш ${fmtRU(META.end)}<br>
@@ -848,11 +784,6 @@ function rMore() {
     };
     r.readAsText(f);
   };
-  $('#pinBtn').onclick = () => {
-    const p = prompt('Новый PIN (4 цифры):');
-    if (p && /^\d{4}$/.test(p)) { Store.d.pin = p; Store.save(); toast('PIN изменён'); }
-    else if (p !== null) alert('Нужно ровно 4 цифры');
-  };
   $('#resetBtn').onclick = () => {
     if (confirm('Стереть ВЕСЬ прогресс? Отменить будет нельзя.\n\nСначала лучше скачать бэкап.')) {
       Store.reset(); location.reload();
@@ -867,19 +798,10 @@ function rMore() {
     catch (e) { alert('Не получилось: ' + (e.message || e)); }
     finally { busy(btn, false); rMore(); renderAll(); }
   };
-  const sIn = $('#syIn'), sUp = $('#syUp'), sOut = $('#syOut'), sPush = $('#syPush'), sPull = $('#syPull');
-  if (sIn) sIn.onclick = () => wrap(sIn, async () => {
-    const e = $('#syEmail').value.trim(), p = $('#syPass').value;
-    if (!e || !p) throw new Error('Заполни почту и пароль');
-    await Sync.signIn(e, p);
-  }, 'Вошёл — прогресс синхронизирован');
-  if (sUp) sUp.onclick = () => wrap(sUp, async () => {
-    const e = $('#syEmail').value.trim(), p = $('#syPass').value;
-    if (!e || p.length < 6) throw new Error('Нужна почта и пароль от 6 символов');
-    await Sync.signUp(e, p);
-    await Sync.signIn(e, p).catch(() => {});
-  }, 'Аккаунт создан. Если попросит — подтверди почту');
-  if (sOut) sOut.onclick = () => wrap(sOut, () => Sync.signOut(), 'Вышел');
+  const sOut = $('#syOut'), sPush = $('#syPush'), sPull = $('#syPull');
+  if (sOut) sOut.onclick = () => {
+    if (confirm('Выйти из аккаунта?\n\nПрогресс останется в облаке — вернёшься тем же входом.')) Auth.signOut();
+  };
   if (sPush) sPush.onclick = () => wrap(sPush, () => Sync.push(), 'Отправлено в облако');
   if (sPull) sPull.onclick = () => wrap(sPull, () => Sync.pull(), 'Забрано из облака');
 }
@@ -892,24 +814,38 @@ Store.load();
 document.documentElement.dataset.theme = Store.d.theme || 'dark';
 
 // иконки оболочки
-$('#lockLogo').innerHTML  = ICONS.shield;
 $('#brandMark').innerHTML = ICONS.shield;
 $('#themeBtn').innerHTML  = ICONS.theme;
-$('#lockBtn').innerHTML   = ICONS.lock;
+$('#outBtn').innerHTML    = ICONS.out;
 
-renderLock();
+/* Вход обязателен: приложение открывается только после того,
+   как Supabase отдал сессию, то есть почта подтверждена. */
+Auth.onenter = async (note) => {
+  $('#gate').style.display = 'none';
+  $('#app').classList.add('on');
+  await Sync.init();
+  renderAll();
+  decodeHeadings($('#v-' + VIEW));
+  if (note) toast(note);
+};
+Auth.onleave = () => {
+  $('#app').classList.remove('on');
+  $('#gate').style.display = 'grid';
+  Store.reset();                  // локальный кеш чужому не достаётся
+};
 
-// синхронизация подключается в фоне и не блокирует интерфейс
 Sync.onchange = () => { if ($('#app').classList.contains('on') && VIEW === 'more') rMore(); };
-Sync.init().catch(e => console.warn('sync init', e));
 // перед закрытием вкладки — успеть отправить накопленное
 window.addEventListener('pagehide', () => { if (Sync.user) Sync.push(); });
+
 $('#themeBtn').onclick = () => {
   setTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark');
 };
-$('#lockBtn').onclick = lock;
-document.addEventListener('keydown', e => {
-  if ($('#lock').style.display === 'none') return;
-  if (/^\d$/.test(e.key)) press(e.key);
-  if (e.key === 'Backspace') { pinBuf = pinBuf.slice(0, -1); renderDots(); }
+$('#outBtn').onclick = () => {
+  if (confirm('Выйти из аккаунта?\n\nПрогресс останется в облаке — вернёшься тем же входом.')) Auth.signOut();
+};
+
+Auth.init().catch(e => {
+  console.error('auth init', e);
+  Auth.go('signin', '', 'Не удалось подключиться: ' + (e.message || e));
 });
