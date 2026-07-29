@@ -81,8 +81,8 @@ const RESOURCES = [
   { q: 1, name: 'TryHackMe — Pre Security path', what: '5 модулей, ~30 rooms. Полностью бесплатно', url: 'https://tryhackme.com/path/outline/presecurity', price: 'Free' },
   { q: 1, name: 'Professor Messer — Network+ N10-009', what: 'YouTube-плейлист, Sections 1–3', url: 'https://www.professormesser.com/', price: 'Free' },
   { q: 1, name: 'Cisco Packet Tracer', what: 'Через курс «Getting Started with Cisco Packet Tracer»', url: 'https://skillsforall.com/', price: 'Free' },
-  { q: 1, name: 'Stepik 73 — Введение в Linux', what: '⭐ Основная теория W7. Пройти целиком: 23 урока, 3 ч 36 мин, 84 теста. ★4.7', url: 'https://stepik.org/course/73', price: 'Free + сертификат' },
-  { q: 1, name: 'Stepik 181507 — Linux-администрирование-Bash', what: '⭐ Теория W8–W10 и W20–W21. НЕ подряд: 45 уроков, 22 ч. Смотреть 1,25–1,5x. ★4.9', url: 'https://stepik.org/course/181507', price: 'Free' },
+  { q: 1, name: 'Stepik 73 — Введение в Linux', what: 'Основная теория W7. Пройти целиком: 23 урока, 3 ч 36 мин, 84 теста. 4.7', url: 'https://stepik.org/course/73', price: 'Free + сертификат' },
+  { q: 1, name: 'Stepik 181507 — Linux-администрирование-Bash', what: 'Теория W8–W10 и W20–W21. НЕ подряд: 45 уроков, 22 ч. Смотреть 1,25–1,5x. 4.9', url: 'https://stepik.org/course/181507', price: 'Free' },
   { q: 1, name: 'OverTheWire Bandit', what: 'Уровни 0–25', url: 'https://overthewire.org/wargames/bandit/', price: 'Free' },
   { q: 1, name: 'malware-traffic-analysis.net', what: 'Traffic Analysis Exercises, начинать со старых (2014–2017)', url: 'https://www.malware-traffic-analysis.net/', price: 'Free' },
   { q: 1, name: 'Microsoft Evaluation Center', what: 'Windows Server 2022 Eval ISO, 180 дней', url: 'https://www.microsoft.com/en-us/evalcenter', price: 'Free' },
@@ -99,7 +99,7 @@ const RESOURCES = [
   { q: 2, name: 'OWASP Juice Shop / DVWA', what: 'Docker-образы для практики web-атак', url: 'https://owasp.org/www-project-juice-shop/', price: 'Free' },
   { q: 2, name: 'OverTheWire Natas', what: 'Уровни 0–10, web-безопасность', url: 'https://overthewire.org/wargames/natas/', price: 'Free' },
 
-  { q: 3, name: 'TryHackMe Premium', what: '🔴 Старт подписки с W27. Модули SOC L1', url: 'https://tryhackme.com/', price: '~$14/мес' },
+  { q: 3, name: 'TryHackMe Premium', what: 'Старт подписки с W27. Модули SOC L1', url: 'https://tryhackme.com/', price: '~$14/мес' },
   { q: 3, name: 'Wazuh', what: '4.x all-in-one deployment на lab box', url: 'https://wazuh.com/', price: 'Free / open source' },
   { q: 3, name: 'Elastic Stack', what: 'Elasticsearch + Kibana + Filebeat + Winlogbeat, Basic license', url: 'https://www.elastic.co/', price: 'Free' },
   { q: 3, name: 'Splunk Enterprise Free', what: '500 МБ/день индексации, бессрочно', url: 'https://www.splunk.com/en_us/download.html', price: 'Free' },
@@ -196,10 +196,10 @@ const BUDGET = {
     { item: 'Внешний SSD для снапшотов VM', when: 'Q3', cost: '$30', prio: 'Средний' }
   ],
   certs: [
-    { name: 'CompTIA Security+ (SY0-701)', cost: '~$400–600', verdict: '✅ Лучший ROI, но в Year 2', pro: 'Максимальная узнаваемость у HR, часто прямо в требованиях', con: 'Дорого, теоретический, экзамен на английском' },
-    { name: 'BTL1 (Security Blue Team)', cost: '~$399', verdict: '✅ Лучший по содержанию', pro: 'Практический, 24-часовой лабораторный экзамен, ровно про blue team', con: 'Меньше узнаваемость у неспециализированных HR' },
-    { name: 'Google Cybersecurity (Coursera)', cost: '~$49/мес × 3–6', verdict: '🟡 Если бюджет узкий', pro: 'Дёшево, есть финансовая помощь', con: 'Слабый вес, воспринимается как начальный' },
-    { name: 'Splunk Core Certified User', cost: '~$130', verdict: '🟡 Опция для Year 2', pro: 'Дёшево и конкретно', con: 'Узко' }
+    { name: 'CompTIA Security+ (SY0-701)', cost: '~$400–600', verdict: 'Лучший ROI, но в Year 2', pro: 'Максимальная узнаваемость у HR, часто прямо в требованиях', con: 'Дорого, теоретический, экзамен на английском' },
+    { name: 'BTL1 (Security Blue Team)', cost: '~$399', verdict: 'Лучший по содержанию', pro: 'Практический, 24-часовой лабораторный экзамен, ровно про blue team', con: 'Меньше узнаваемость у неспециализированных HR' },
+    { name: 'Google Cybersecurity (Coursera)', cost: '~$49/мес × 3–6', verdict: 'Если бюджет узкий', pro: 'Дёшево, есть финансовая помощь', con: 'Слабый вес, воспринимается как начальный' },
+    { name: 'Splunk Core Certified User', cost: '~$130', verdict: 'Опция для Year 2', pro: 'Дёшево и конкретно', con: 'Узко' }
   ],
   note: 'Не покупай ни один сертификат раньше W51. Портфолио и практические платформы в первый год дают больше отдачи на каждый доллар.'
 };

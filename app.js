@@ -8,12 +8,25 @@ const esc = s => String(s == null ? '' : s)
   .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
   .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 
+const S = (d, extra) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${d}${extra||''}</svg>`;
+
 const ICONS = {
-  today:  '<svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2.5"/><path d="M3 10h18M8 3v4M16 3v4"/><path d="M8.5 15.5l2 2 4-4"/></svg>',
-  year:   '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.2 2"/></svg>',
-  weeks:  '<svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h10"/></svg>',
-  career: '<svg viewBox="0 0 24 24"><rect x="3" y="7" width="18" height="13" rx="2.5"/><path d="M8.5 7V5.5A1.5 1.5 0 0 1 10 4h4a1.5 1.5 0 0 1 1.5 1.5V7"/></svg>',
-  more:   '<svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="19" cy="12" r="1.4"/></svg>'
+  today:  S('<path d="M3 12h4l2-5 3 10 2.5-7 1.8 4H21"/>'),
+  year:   S('<circle cx="12" cy="12" r="8.5"/><path d="M12 6.5v5.5l3.5 2"/><path d="M12 3.5v1M20.5 12h-1M12 20.5v-1M3.5 12h1"/>'),
+  weeks:  S('<rect x="3" y="4.5" width="18" height="15.5" rx="2"/><path d="M3 9.5h18M8 3v3M16 3v3"/><path d="M7.5 14l2 2 4.5-4.5"/>'),
+  career: S('<rect x="3" y="7.5" width="18" height="12.5" rx="2"/><path d="M8.5 7.5V6A1.5 1.5 0 0 1 10 4.5h4A1.5 1.5 0 0 1 15.5 6v1.5"/><path d="M3 13h18"/>'),
+  more:   S('<circle cx="5" cy="12" r="1.3" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.3" fill="currentColor" stroke="none"/><circle cx="19" cy="12" r="1.3" fill="currentColor" stroke="none"/>'),
+  shield: S('<path d="M12 3l7.5 3v5.5c0 4.6-3.1 8-7.5 9.5-4.4-1.5-7.5-4.9-7.5-9.5V6z"/><path d="M9 12l2 2 4-4.5"/>'),
+  check:  S('<path d="M4.5 12.5l4.5 4.5L19.5 6.5"/>'),
+  chev:   S('<path d="M9 5l7 7-7 7"/>'),
+  theme:  S('<circle cx="12" cy="12" r="8.5"/><path d="M12 3.5v17" /><path d="M12 3.5a8.5 8.5 0 0 1 0 17z" fill="currentColor" stroke="none"/>'),
+  lock:   S('<rect x="4.5" y="10.5" width="15" height="9.5" rx="2"/><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3"/><circle cx="12" cy="15" r="1.2" fill="currentColor" stroke="none"/>'),
+  rocket: S('<path d="M12 3c3.5 2 5.5 5.5 5.5 9.5L12 18l-5.5-5.5C6.5 8.5 8.5 5 12 3z"/><circle cx="12" cy="10" r="1.8"/><path d="M8.5 17c-1.5.6-2 2-2 4 2 0 3.4-.5 4-2M15.5 17c1.5.6 2 2 2 4-2 0-3.4-.5-4-2"/>'),
+  timer:  S('<circle cx="12" cy="13.5" r="7.5"/><path d="M12 9.5v4l2.5 1.5"/><path d="M9.5 2.5h5"/>'),
+  inbox:  S('<path d="M3.5 13.5L6 5.5h12l2.5 8"/><path d="M3.5 13.5h4l1.2 2.5h6.6l1.2-2.5h4v5a1.5 1.5 0 0 1-1.5 1.5h-14A1.5 1.5 0 0 1 3.5 18.5z"/>'),
+  radar:  S('<circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4.5"/><path d="M12 12l6-3.5"/><circle cx="12" cy="12" r="1" fill="currentColor" stroke="none"/>'),
+  bolt:   S('<path d="M13.5 3L6 13.5h5L10.5 21 18 10.5h-5z"/>'),
+  file:   S('<path d="M14 3.5H7.5A1.5 1.5 0 0 0 6 5v14a1.5 1.5 0 0 0 1.5 1.5h9A1.5 1.5 0 0 0 18 19V7.5z"/><path d="M14 3.5V7.5H18"/><path d="M9 12.5h6M9 16h4"/>')
 };
 const NAV = [
   { id: 'today',  label: 'Сегодня'  },
@@ -140,6 +153,38 @@ function countUp(el, to, suffix) {
 }
 function fmtNum(n) { return Number.isInteger(n) ? String(Math.round(n)) : (Math.round(n * 10) / 10).toFixed(1); }
 
+
+/** Эффект расшифровки текста: символы перебираются и складываются в слово. */
+const GLYPHS = '01<>[]{}/\\|=+*#$%&@ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+function decodeText(el) {
+  if (REDUCED || !el || el.dataset.decoded) return;
+  el.dataset.decoded = '1';
+  const target = el.textContent;
+  const len = target.length;
+  if (len > 40) return;
+  let frame = 0;
+  const total = len * 2 + 8;
+  const tick = () => {
+    let out = '';
+    for (let i = 0; i < len; i++) {
+      if (target[i] === ' ') { out += ' '; continue; }
+      const start = i * 2;
+      if (frame > start + 6) out += target[i];
+      else if (frame > start) out += GLYPHS[(Math.random() * GLYPHS.length) | 0];
+      else out += '';
+    }
+    el.textContent = out;
+    if (frame++ < total) requestAnimationFrame(tick);
+    else el.textContent = target;
+  };
+  requestAnimationFrame(tick);
+}
+
+/** Расшифровать заголовки секций во вкладке при её показе. */
+function decodeHeadings(root) {
+  $$('.section-h h2', root).forEach((h, i) => setTimeout(() => decodeText(h), i * 70));
+}
+
 /** Тактильный отклик там, где он уместен. */
 function buzz(ms) { try { !REDUCED && navigator.vibrate && navigator.vibrate(ms || 12); } catch (e) {} }
 
@@ -157,7 +202,9 @@ function renderAll() {
 }
 function render(id) {
   ({ today: rToday, year: rYear, weeks: rWeeks, career: rCareer, more: rMore })[id]();
-  observeReveals($('#v-' + id));
+  const root = $('#v-' + id);
+  observeReveals(root);
+  if (id === VIEW) decodeHeadings(root);
 }
 
 /* ─────────── СЕГОДНЯ ─────────── */
@@ -176,11 +223,11 @@ function rToday() {
 
   let h = '';
 
-  h += `<div class="section-h"><h2>${greeting()}</h2></div>`;
+  h += `<div class="section-h"><h2>${greeting()}</h2><span class="rule"></span></div>`;
 
   if (isBeforeStart()) {
     h += card(`<div class="row" style="gap:14px">
-      <div style="font-size:30px">🚀</div>
+      <div style="color:var(--cyan)">${ICONS.rocket}</div>
       <div><b>Старт ${fmtRU(META.start)}</b>
       <p class="muted sm" style="margin:2px 0 0">Осталось ${daysBetween(today, META.start)} дн. Пока можно закрыть W1 заранее: поставить SSD в ASUS и развернуть гипервизор.</p></div></div>`);
   }
@@ -196,11 +243,11 @@ function rToday() {
       const on = !!(Store.d.days[today] || {})[b.id];
       const m = (b.id === 'lab' && sess) ? 35 : b.min;
       return `<div class="chk${on ? ' on' : ''}" data-block="${b.id}">
-        <div class="box">✓</div>
+        <div class="box">${ICONS.check}</div>
         <div class="body"><b>${b.name}</b><p>${esc(b.desc)}</p></div>
         <div class="min">${m}м</div></div>`;
     }).join('')}</div>
-    ${sess ? `<p class="tiny mt" style="color:var(--warn)">🔴 Неделя сессии. Универ приоритетнее — это заложено в план, а не провал.</p>` : ''}
+    ${sess ? `<p class="tiny mt" style="color:var(--warn)">Неделя сессии. Универ приоритетнее — это заложено в план, а не провал.</p>` : ''}
   </div>`;
 
   /* таймер */
@@ -216,18 +263,18 @@ function rToday() {
   </div>`;
 
   /* текущая неделя */
-  h += `<div class="section-h"><h2>Неделя W${cw}</h2><span class="pill q${w.q}">${QUARTERS[w.q].code}</span></div>`;
+  h += `<div class="section-h"><h2>Неделя W${cw}</h2><span class="rule"></span><span class="pill q${w.q}">${QUARTERS[w.q].code}</span></div>`;
   h += weekCard(w, true);
 
   /* streak и цифры */
-  h += `<div class="section-h"><h2>Пульс</h2></div>
+  h += `<div class="section-h"><h2>Пульс</h2><span class="rule"></span></div>
   <div class="grid g3">
     ${stat(t.streak, 'streak, дней')}
     ${stat(t.closed + '/52', 'недель закрыто')}
     ${stat(t.pct + '%', 'года пройдено')}
   </div>`;
 
-  if (t.streak >= 3) h += `<p class="tiny dim mt center">🔥 ${t.streak} ${plural(t.streak, 'будний день', 'будних дня', 'будних дней')} подряд. Главное правило — не пропустить 3 дня подряд.</p>`;
+  if (t.streak >= 3) h += `<p class="tiny dim mt center">${t.streak} ${plural(t.streak, 'будний день', 'будних дня', 'будних дней')} подряд. Главное правило — не пропустить 3 дня подряд.</p>`;
 
   /* правило дня */
   const rule = RULES[dayOfYear() % RULES.length];
@@ -284,7 +331,7 @@ function startTimer(min, name) {
     if (left <= 0) {
       stopTimer();
       el.textContent = '00:00';
-      $('#tLbl').textContent = 'готово ✓';
+      $('#tLbl').textContent = 'БЛОК ЗАВЕРШЁН';
       toast(name + ' — блок закончен');
       try { navigator.vibrate && navigator.vibrate([200, 90, 200]); } catch (e) {}
       return;
@@ -305,16 +352,21 @@ function rYear() {
   const R = 74, C = 2 * Math.PI * R;
   let h = '';
 
-  h += `<div class="section-h"><h2>Дашборд года</h2><span class="tiny dim">${fmtRU(META.start)} → ${fmtRU(META.end)}</span></div>`;
+  h += `<div class="section-h"><h2>Дашборд года</h2><span class="rule"></span><span class="tiny dim">${fmtRU(META.start)} → ${fmtRU(META.end)}</span></div>`;
 
   h += `<div class="card center">
     <div class="ring-wrap">
+      <div class="radar"></div>
       <svg class="ring" width="176" height="176" viewBox="0 0 176 176">
-        <circle class="track" cx="88" cy="88" r="${R}" stroke-width="12"/>
-        <circle class="fill"  cx="88" cy="88" r="${R}" stroke-width="12"
+        <circle class="track" cx="88" cy="88" r="${R}" stroke-width="10"/>
+        <g class="ticks">${Array.from({length:48},(_,i)=>{
+          const a=i*7.5*Math.PI/180, r1=R+9, r2=R+(i%4?12:15);
+          return `<line x1="${88+Math.cos(a)*r1}" y1="${88+Math.sin(a)*r1}" x2="${88+Math.cos(a)*r2}" y2="${88+Math.sin(a)*r2}"/>`;
+        }).join('')}</g>
+        <circle class="fill"  cx="88" cy="88" r="${R}" stroke-width="10"
           stroke-dasharray="${C}" stroke-dashoffset="${C * (1 - t.pct / 100)}"/>
       </svg>
-      <div class="ring-txt"><b>${t.pct}%</b><span class="tiny dim">пройдено</span></div>
+      <div class="ring-txt"><b>${t.pct}%</b><span class="dim">выполнено</span></div>
     </div>
     <div class="grid g2 mt2">
       ${stat(t.hoursFact, 'часов факт')}
@@ -332,10 +384,10 @@ function rYear() {
     </div>
   </div>`;
 
-  h += `<div class="section-h"><h2>Кварталы</h2></div>`;
+  h += `<div class="section-h"><h2>Кварталы</h2><span class="rule"></span></div>`;
   [1,2,3,4].forEach(q => {
     const Q = QUARTERS[q], s = Store.quarterTotals(q);
-    h += `<div class="card wk q${q} reveal">
+    h += `<div class="card hud wk q${q} reveal">
       <div class="card-t">
         <div><h3>${Q.code} · ${Q.name}</h3><div class="tiny dim">${Q.range} · ${Q.dates}</div></div>
         <span class="pill q${q}">${s.pct}%</span>
@@ -348,7 +400,7 @@ function rYear() {
     </div>`;
   });
 
-  h += `<div class="section-h"><h2>Контрольные точки</h2><span class="tiny dim">заполняй факт</span></div>`;
+  h += `<div class="section-h"><h2>Контрольные точки</h2><span class="rule"></span><span class="tiny dim">заполняй факт</span></div>`;
   const LBL = { hours:'Часов накоплено', repos:'Репозиториев', thm:'THM rooms', anki:'Карточек Anki EN',
                 efset:'English (EF SET)', rules:'Detection rules', cases:'Инцидентов разобрано', apps:'Откликов' };
   MILESTONES.forEach(m => {
@@ -368,11 +420,11 @@ function rYear() {
       </div></details>`;
   });
 
-  h += `<div class="section-h"><h2>Если отстаёшь</h2></div><div class="card">
+  h += `<div class="section-h"><h2>Если отстаёшь</h2><span class="rule"></span></div><div class="card">
     <table class="t"><tbody>${LAG_PROTOCOL.map(l =>
       `<tr><td style="width:132px"><b>${esc(l.lag)}</b></td><td class="muted">${esc(l.action)}</td></tr>`).join('')}</tbody></table></div>`;
 
-  h += `<div class="section-h"><h2>Красные флаги</h2></div><div class="card">
+  h += `<div class="section-h"><h2>Красные флаги</h2><span class="rule"></span></div><div class="card">
     <p class="sm muted">Два и более признака дольше 2 недель — снижай нагрузку до session mode и восстанавливайся.</p>
     ${RED_FLAGS.map(f => `<div class="sm" style="padding:5px 0;border-bottom:1px solid var(--border)">· ${esc(f)}</div>`).join('')}
     <p class="tiny dim mt" style="margin-bottom:0">Год — это долго. План на 75% за 52 недели кратно лучше плана на 120% за 14 недель и брошенного.</p></div>`;
@@ -400,7 +452,7 @@ function rYear() {
 /* ─────────── НЕДЕЛИ ─────────── */
 function rWeeks() {
   const cw = currentWeek();
-  let h = `<div class="section-h"><h2>52 недели</h2><span class="tiny dim">W${cw} сейчас</span></div>`;
+  let h = `<div class="section-h"><h2>52 недели</h2><span class="rule"></span><span class="tiny dim">W${cw} сейчас</span></div>`;
 
   h += `<div class="filters">
     ${[['all','Все'],['now','Текущая'],['q1','Q1'],['q2','Q2'],['q3','Q3'],['q4','Q4'],
@@ -421,7 +473,7 @@ function rWeeks() {
   });
 
   h += list.length ? list.map(w => weekCard(w, w.w === cw)).join('')
-                   : `<div class="empty"><div class="ic">🗂</div>Ничего не найдено</div>`;
+                   : `<div class="empty"><div class="ic">${ICONS.file}</div>Ничего не найдено</div>`;
 
   $('#v-weeks').innerHTML = h;
   $$('[data-f]').forEach(b => b.onclick = () => { WEEK_FILTER = b.dataset.f; rWeeks(); });
@@ -437,7 +489,8 @@ function weekCard(w, isNow) {
   const stCls = s.status === 'Закрыта' ? 'ok' : s.status === 'Частично' ? 'warn'
               : s.status === 'Перенесена' ? 'danger' : s.status === 'В работе' ? 'accent' : '';
 
-  return `<div class="card wk q${w.q}${isNow ? ' now' : ''}${isNow ? ' open' : ''}${isNow ? '' : ' reveal'}" data-wk="${w.w}">
+  return `<div class="card hud scanfx wk q${w.q}${isNow ? ' now' : ''}${isNow ? ' open' : ''}${isNow ? '' : ' reveal'}" data-wk="${w.w}">
+    <span class="beam"></span>
     <div class="wk-h" data-toggle>
       <div class="wk-n">W${w.w}</div>
       <div class="wk-body">
@@ -452,13 +505,13 @@ function weekCard(w, isNow) {
         </div>
         ${all ? `<div class="bar mt" style="height:5px"><i style="width:${pct}%"></i></div>` : ''}
       </div>
-      <div class="wk-x">›</div>
+      <div class="wk-x">${ICONS.chev}</div>
     </div>
 
     <div class="wk-detail">
       <div class="tiny dim" style="font-weight:700;text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px">Задачи недели</div>
       ${w.tasks.map((tk, i) => `<div class="task${(s.tasks || []).includes(i) ? ' on' : ''}" data-task="${i}">
-        <div class="box">✓</div><span>${esc(tk)}</span></div>`).join('')}
+        <div class="box">${ICONS.check}</div><span>${esc(tk)}</span></div>`).join('')}
 
       <div class="deliv"><b>Deliverable — без него неделя не закрыта</b>${esc(w.deliverable)}</div>
 
@@ -516,12 +569,12 @@ function bindWeekCard(root) {
 /* ─────────── КАРЬЕРА ─────────── */
 function rCareer() {
   const t = Store.totals();
-  let h = `<div class="section-h"><h2>Портфолио</h2><span class="pill ${t.repos === 8 ? 'ok' : ''}">${t.repos}/8</span></div>`;
+  let h = `<div class="section-h"><h2>Портфолио</h2><span class="rule"></span><span class="pill ${t.repos === 8 ? 'ok' : ''}">${t.repos}/8</span></div>`;
 
   PORTFOLIO.forEach(r => {
     const s = Store.repo(r.id);
     const wk = WEEKS[r.week - 1];
-    h += `<div class="card wk q${wk.q} reveal">
+    h += `<div class="card hud scanfx wk q${wk.q} reveal"><span class="beam"></span>
       <div class="card-t">
         <div><h3 class="mono" style="font-size:14.5px">${esc(r.name)}</h3>
         <div class="tiny dim">создаётся в W${r.week} · ${esc(r.why)}</div></div>
@@ -530,7 +583,7 @@ function rCareer() {
       <p class="sm muted" style="margin:0 0 10px">${esc(r.inside)}</p>
       <div class="row wrap" style="gap:7px">
         ${[['readme','README (EN)'],['screens','3+ скриншота'],['published','Опубликован']]
-          .map(([k, l]) => `<button class="fbtn${s[k] ? ' on' : ''}" data-repo="${r.id}" data-rk="${k}">${s[k] ? '✓ ' : ''}${l}</button>`).join('')}
+          .map(([k, l]) => `<button class="fbtn${s[k] ? ' on' : ''}" data-repo="${r.id}" data-rk="${k}">${s[k] ? '[x] ' : '[ ] '}${l}</button>`).join('')}
       </div>
       <label class="fld mt"><span>Ссылка на репозиторий</span>
         <input type="url" value="${esc(s.url)}" data-repo-url="${r.id}" placeholder="https://github.com/..."></label>
@@ -538,12 +591,12 @@ function rCareer() {
   });
 
   h += `<div class="card"><h3>Требования к каждому репозиторию</h3>
-    ${PORTFOLIO_RULES.need.map(x => `<div class="sm" style="padding:4px 0">✓ ${esc(x)}</div>`).join('')}
+    ${PORTFOLIO_RULES.need.map(x => `<div class="sm" style="padding:4px 0"><span style="color:var(--green)">+</span> ${esc(x)}</div>`).join('')}
     <h3 class="mt2" style="color:var(--danger)">Что НЕ класть</h3>
-    ${PORTFOLIO_RULES.avoid.map(x => `<div class="sm" style="padding:4px 0">✕ ${esc(x)}</div>`).join('')}</div>`;
+    ${PORTFOLIO_RULES.avoid.map(x => `<div class="sm" style="padding:4px 0"><span style="color:var(--red)">−</span> ${esc(x)}</div>`).join('')}</div>`;
 
   /* отклики */
-  h += `<div class="section-h"><h2>Отклики</h2><span class="pill ${t.apps >= 60 ? 'ok' : ''}">${t.apps}/60</span></div>`;
+  h += `<div class="section-h"><h2>Отклики</h2><span class="rule"></span><span class="pill ${t.apps >= 60 ? 'ok' : ''}">${t.apps}/60</span></div>`;
   h += `<div class="card">
     <div class="grid g3">
       ${stat(t.apps, 'откликов')}
@@ -558,7 +611,7 @@ function rCareer() {
   h += `<div id="appList">${renderApps()}</div>`;
 
   /* рынок / CV / письмо */
-  h += `<div class="section-h"><h2>Карта рынка</h2></div>`;
+  h += `<div class="section-h"><h2>Карта рынка</h2><span class="rule"></span></div>`;
   MARKET.forEach(m => {
     const p = m.real === 'high' ? 'ok' : m.real === 'mid' ? 'warn' : 'danger';
     const lbl = m.real === 'high' ? 'реалистично' : m.real === 'mid' ? 'средне' : 'сложно';
@@ -566,13 +619,13 @@ function rCareer() {
       <p class="sm muted" style="margin:0">${esc(m.text)}</p></div>`;
   });
 
-  h += `<div class="section-h"><h2>Ожидания по W52</h2></div><div class="card"><table class="t"><tbody>
+  h += `<div class="section-h"><h2>Ожидания по W52</h2><span class="rule"></span></div><div class="card"><table class="t"><tbody>
     ${OUTCOMES.map(o => `<tr><td><b>${esc(o.s)}</b><div class="tiny dim">${esc(o.text)}</div></td>
       <td style="width:66px;text-align:right"><span class="pill">${o.p}</span></td></tr>`).join('')}
     </tbody></table>
     <p class="tiny dim mt" style="margin-bottom:0">Не строй план вокруг «оффер или провал». Строй вокруг «к W52 у меня есть портфолио, которого нет у 95% выпускников».</p></div>`;
 
-  h += `<div class="section-h"><h2>Резюме</h2></div>
+  h += `<div class="section-h"><h2>Резюме</h2><span class="rule"></span></div>
     <details class="acc"><summary><span>Структура CV — 1 страница</span></summary>
       <div><pre class="code">${esc(CV_TEXT)}</pre>
       <div class="mt">${CV_RULES.map(r => `<div class="sm" style="padding:4px 0">· ${esc(r)}</div>`).join('')}</div>
@@ -602,12 +655,12 @@ function rCareer() {
 
 function renderApps() {
   const list = Store.d.apps;
-  if (!list.length) return `<div class="empty"><div class="ic">📮</div>Пока пусто. Первая волна — W49.</div>`;
+  if (!list.length) return `<div class="empty"><div class="ic">${ICONS.inbox}</div>Пока пусто. Первая волна — W49.</div>`;
   return list.slice().reverse().map(a => `<div class="app-item">
     <div class="row" style="justify-content:space-between;align-items:flex-start">
       <div style="min-width:0"><b>${esc(a.company || '—')}</b>
         <div class="tiny dim">${esc(a.role || '')} ${a.cat ? '· ' + esc(a.cat) : ''}</div></div>
-      <button class="btn sm danger" data-delapp="${a.id}">✕</button>
+      <button class="btn sm danger" data-delapp="${a.id}">×</button>
     </div>
     <div class="row wrap mt" style="gap:8px">
       <select data-appst="${a.id}" style="width:auto;flex:1;min-width:150px">
@@ -637,7 +690,7 @@ function addAppPrompt() {
 
 /* ─────────── ЕЩЁ ─────────── */
 function rMore() {
-  let h = `<div class="section-h"><h2>Ежедневный блюпринт</h2></div>
+  let h = `<div class="section-h"><h2>Ежедневный блюпринт</h2><span class="rule"></span></div>
   <div class="card"><table class="t"><thead><tr><th>Блок</th><th style="width:52px">Мин</th></tr></thead><tbody>
     ${DAILY.map(b => `<tr><td><b>${b.name}</b><div class="tiny dim">${esc(b.desc)}</div></td>
       <td class="mono">${b.min}</td></tr>`).join('')}
@@ -648,19 +701,19 @@ function rMore() {
     `<tr><td><b>${esc(v.name)}</b><div class="tiny dim">${esc(v.when)}</div></td>
      <td class="mono tiny" style="width:100px">${v.blocks}</td></tr>`).join('')}</tbody></table></div>`;
 
-  h += `<div class="section-h"><h2>Как читать документацию на A1</h2></div><div class="card">
+  h += `<div class="section-h"><h2>Как читать документацию на A1</h2><span class="rule"></span></div><div class="card">
     ${READING_METHOD.map(m => `<div style="padding:9px 0;border-bottom:1px solid var(--border)">
       <b>Проход ${m.n} — ${esc(m.name)} <span class="dim tiny">(${m.min} мин)</span></b>
       <p class="sm muted" style="margin:3px 0 0">${esc(m.text)}</p></div>`).join('')}
     <p class="tiny dim mt" style="margin-bottom:0">Никогда не переводи документ целиком — это иллюзия работы.</p></div>`;
 
-  h += `<div class="section-h"><h2>Языки</h2></div>`;
+  h += `<div class="section-h"><h2>Языки</h2><span class="rule"></span></div>`;
   LANGS.forEach(l => {
     const s = Store.lang(l.q);
     h += `<div class="card wk q${l.q}">
       <div class="card-t"><h3>${QUARTERS[l.q].code} · English → ${l.target}</h3><span class="pill q${l.q}">${QUARTERS[l.q].range}</span></div>
       <p class="sm muted" style="margin:0 0 8px">${esc(l.en)}</p>
-      <p class="tiny dim" style="margin:0 0 10px">🇵🇱 ${esc(l.pl)}</p>
+      <p class="tiny dim" style="margin:0 0 10px">PL · ${esc(l.pl)}</p>
       <div class="grid g2">
         <label class="fld" style="margin:0"><span>EF SET факт</span>
           <input type="text" value="${esc(s.efset)}" data-lang="${l.q}" data-lk="efset" placeholder="${l.target}"></label>
@@ -669,7 +722,7 @@ function rMore() {
       </div></div>`;
   });
 
-  h += `<div class="section-h"><h2>Ресурсы</h2></div>`;
+  h += `<div class="section-h"><h2>Ресурсы</h2><span class="rule"></span></div>`;
   [1,2,3,4].forEach(q => {
     h += `<details class="acc"><summary><span>${QUARTERS[q].code} · ${QUARTERS[q].name}</span><span class="pill q${q}">${RESOURCES.filter(r => r.q === q).length}</span></summary><div>
       ${RESOURCES.filter(r => r.q === q).map(r => `<div style="padding:8px 0;border-bottom:1px solid var(--border)">
@@ -679,7 +732,7 @@ function rMore() {
     </div></details>`;
   });
 
-  h += `<div class="section-h"><h2>Железо и лаборатория</h2></div>`;
+  h += `<div class="section-h"><h2>Железо и лаборатория</h2><span class="rule"></span></div>`;
   HARDWARE.forEach(hw => {
     h += `<div class="card"><div class="card-t"><h3>${esc(hw.name)}</h3>
       <span class="pill ${hw.ok ? 'ok' : 'danger'}">${hw.role}</span></div>
@@ -689,7 +742,7 @@ function rMore() {
   h += `<details class="acc"><summary><span>Установка стека на MacBook (W1)</span></summary>
     <div><pre class="code">${esc(SETUP_CMD)}</pre></div></details>`;
 
-  h += `<div class="section-h"><h2>Справочник</h2></div>`;
+  h += `<div class="section-h"><h2>Справочник</h2><span class="rule"></span></div>`;
   h += `<details class="acc"><summary><span>Команды наизусть к W52</span></summary><div>
     ${COMMANDS.map(g => `<h3 class="mt">${esc(g.group)}</h3>
       ${g.items.map(i => `<div class="cmd-row"><code>${esc(i.cmd)}</code><small>${esc(i.desc)}</small></div>`).join('')}`).join('')}
@@ -710,7 +763,7 @@ function rMore() {
     ${COURSE_FILTER.map((c, i) => `<div class="sm" style="padding:6px 0;border-bottom:1px solid var(--border)"><b>${i + 1}.</b> ${esc(c)}</div>`).join('')}
   </div></details>`;
 
-  h += `<div class="section-h"><h2>Бюджет</h2></div><div class="card">
+  h += `<div class="section-h"><h2>Бюджет</h2><span class="rule"></span></div><div class="card">
     <h3>Обязательно</h3><table class="t"><tbody>
     ${BUDGET.required.map(b => `<tr><td>${esc(b.item)}<div class="tiny dim">${esc(b.when)}</div></td>
       <td style="width:110px;text-align:right"><b>${esc(b.cost)}</b></td></tr>`).join('')}</tbody></table>
@@ -724,14 +777,13 @@ function rMore() {
       <div class="tiny dim">+ ${esc(c.pro)}</div><div class="tiny dim">− ${esc(c.con)}</div></div>`).join('')}
     <p class="tiny mt" style="color:var(--warn)">${esc(BUDGET.note)}</p></div></details>`;
 
-  h += `<div class="section-h"><h2>Все правила</h2></div><div class="card">
+  h += `<div class="section-h"><h2>Все правила</h2><span class="rule"></span></div><div class="card">
     ${RULES.map(r => `<div style="padding:9px 0;border-bottom:1px solid var(--border)">
       <b>${esc(r.name)}</b><p class="sm muted" style="margin:2px 0 0">${esc(r.text)}</p></div>`).join('')}</div>`;
 
   /* ── синхронизация ── */
   const su = Sync.user;
-  h += `<div class="section-h"><h2>Синхронизация</h2>
-    <span class="row tiny dim" style="gap:6px"><i class="sync-dot ${
+  h += `<div class="section-h"><h2>Синхронизация</h2><span class="rule"></span><span class="row tiny dim" style="gap:6px"><i class="sync-dot ${
       Sync.state === 'ok' ? 'ok' : Sync.state === 'busy' ? 'busy' : Sync.state === 'err' ? 'err' : ''}"></i>${esc(Sync.label())}</span></div>`;
 
   if (!Sync.available()) {
@@ -761,7 +813,7 @@ function rMore() {
     </div>`;
   }
 
-  h += `<div class="section-h"><h2>Данные</h2></div><div class="card">
+  h += `<div class="section-h"><h2>Данные</h2><span class="rule"></span></div><div class="card">
     <p class="sm muted">Прогресс хранится в этом браузере (localStorage)${su ? ' и дублируется в твой Supabase' : ''}. <b>Делай бэкап раз в месяц</b> — очистка данных сайта сотрёт локальную копию.</p>
     <div class="row wrap mt">
       <button class="btn primary" id="expBtn">Скачать бэкап</button>
@@ -830,12 +882,19 @@ function rMore() {
   if (sPull) sPull.onclick = () => wrap(sPull, () => Sync.pull(), 'Забрано из облака');
 }
 
-function stat(v, l) { return `<div class="stat"><b>${esc(v)}</b><span>${esc(l)}</span></div>`; }
+function stat(v, l) { return `<div class="stat hud"><b>${esc(v)}</b><span>${esc(l)}</span></div>`; }
 function card(inner) { return `<div class="card">${inner}</div>`; }
 
 /* ══════════════════ INIT ══════════════════ */
 Store.load();
 document.documentElement.dataset.theme = Store.d.theme || 'dark';
+
+// иконки оболочки
+$('#lockLogo').innerHTML  = ICONS.shield;
+$('#brandMark').innerHTML = ICONS.shield;
+$('#themeBtn').innerHTML  = ICONS.theme;
+$('#lockBtn').innerHTML   = ICONS.lock;
+
 renderLock();
 
 // синхронизация подключается в фоне и не блокирует интерфейс

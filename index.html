@@ -5,26 +5,30 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>SOC Roadmap 365</title>
 <meta name="description" content="Личный трекер годового плана перехода в Junior SOC Analyst">
-<meta name="theme-color" content="#0a0a0d" media="(prefers-color-scheme: dark)">
-<meta name="theme-color" content="#f3f0ea" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#06090f" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#f2f5f9" media="(prefers-color-scheme: light)">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="SOC 365">
 <meta name="robots" content="noindex, nofollow">
 <link rel="manifest" href="manifest.webmanifest">
-<link rel="apple-touch-icon" href="icon.svg?v=3">
-<link rel="icon" href="icon.svg?v=3" type="image/svg+xml">
-<link rel="stylesheet" href="styles.css?v=3">
+<link rel="apple-touch-icon" href="icon.svg?v=4">
+<link rel="icon" href="icon.svg?v=4" type="image/svg+xml">
+<link rel="stylesheet" href="styles.css?v=4">
 </head>
 <body>
 
-<div class="aurora" aria-hidden="true"><i></i><i></i><i></i></div>
+<div class="env" aria-hidden="true">
+  <div class="grid"></div>
+  <span class="orb"></span><span class="orb"></span><span class="orb"></span>
+  <div class="scan"></div>
+</div>
 
 <!-- ══════════ LOCK ══════════ -->
 <div id="lock">
   <div class="lock-card">
-    <div class="lock-logo">🛡️</div>
-    <h1 style="font-size:22px">SOC Roadmap 365</h1>
+    <div class="lock-logo" id="lockLogo"></div>
+    <h1 class="lock-title">SOC&nbsp;ROADMAP&nbsp;365</h1>
     <p class="muted sm" id="lockMsg" style="margin-top:6px">Введи PIN-код</p>
     <div class="pin-dots" id="pinDots"></div>
     <div class="pin-pad" id="pinPad"></div>
@@ -35,11 +39,11 @@
 <!-- ══════════ APP ══════════ -->
 <div id="app">
   <header class="topbar">
-    <div class="brand"><span class="brand-mark">🛡️</span><span>SOC 365</span></div>
+    <div class="brand"><span class="brand-mark" id="brandMark"></span><span>SOC 365</span></div>
     <span class="spacer"></span>
     <span class="pill accent" id="topWeek">—</span>
-    <button class="icon-btn" id="themeBtn" title="Тема">◐</button>
-    <button class="icon-btn" id="lockBtn" title="Заблокировать">⎋</button>
+    <button class="icon-btn" id="themeBtn" title="Тема"></button>
+    <button class="icon-btn" id="lockBtn" title="Заблокировать"></button>
   </header>
 
   <div class="layout">
@@ -65,19 +69,19 @@
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
   <defs>
     <linearGradient id="ringGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%"  stop-color="#ffc46b"/>
-      <stop offset="55%" stop-color="#ff8a2b"/>
-      <stop offset="100%" stop-color="#ff6a00"/>
+      <stop offset="0%"  stop-color="#22e3d4"/>
+      <stop offset="55%" stop-color="#3fc3e8"/>
+      <stop offset="100%" stop-color="#4d9fff"/>
     </linearGradient>
   </defs>
 </svg>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-<script src="config.js?v=3"></script>
-<script src="data-weeks.js?v=3"></script>
-<script src="data.js?v=3"></script>
-<script src="store.js?v=3"></script>
-<script src="sync.js?v=3"></script>
-<script src="app.js?v=3"></script>
+<script src="config.js?v=4"></script>
+<script src="data-weeks.js?v=4"></script>
+<script src="data.js?v=4"></script>
+<script src="store.js?v=4"></script>
+<script src="sync.js?v=4"></script>
+<script src="app.js?v=4"></script>
 </body>
 </html>
