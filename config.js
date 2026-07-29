@@ -1,14 +1,17 @@
 /* ============================================================
    config.js — подключение Supabase
-   Эти два значения публичные по замыслу Supabase: anon-ключ
-   безопасен в открытом коде, доступ к данным режет RLS
-   (Row Level Security) на стороне сервера — строку видит
-   только тот, кто вошёл под своей учётной записью.
+
+   Эти два значения публичные по замыслу Supabase. Publishable-ключ
+   не секрет: он лишь идентифицирует проект. Доступ к данным режет
+   Row Level Security на стороне сервера — политики в supabase.sql
+   отдают строку только тому, у кого auth.uid() = user_id.
+
+   Сюда НИКОГДА не попадают: пароль базы данных и service_role-ключ.
    ============================================================ */
 
-const SUPABASE_URL = '__SUPABASE_URL__';
-const SUPABASE_ANON_KEY = '__SUPABASE_ANON_KEY__';
+const SUPABASE_URL = 'https://wfjskomrcipjgsaxekny.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_oZRGYGKv-buZ8Pw75SOXTA_QbtjnTCh';
 
 /** Синхронизация включается только если оба значения заполнены. */
 const SYNC_ENABLED =
-  SUPABASE_URL.indexOf('supabase.co') > -1 && SUPABASE_ANON_KEY.length > 40;
+  SUPABASE_URL.indexOf('supabase.co') > -1 && SUPABASE_ANON_KEY.length > 30;
