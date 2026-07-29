@@ -576,6 +576,44 @@ details.acc > div { padding: 0 15px 15px; animation: expand .34s var(--ease) bot
 }
 
 
+/* ══════════ STREAK: ДОЛГ И ЗАМОРОЗКА ══════════ */
+.streak-brk { border-color: color-mix(in srgb, var(--amber) 34%, transparent); }
+.streak-brk b { color: var(--amber); font-family: var(--mono); font-size: 13px;
+  letter-spacing: .04em; text-transform: uppercase; }
+
+/* ══════════ ДОСТИЖЕНИЯ ══════════ */
+.ach-grid { display: grid; gap: 10px;
+  grid-template-columns: repeat(auto-fill, minmax(min(280px,100%), 1fr)); }
+.ach { display: flex; gap: 12px; align-items: flex-start; padding: 14px;
+  border: 1px solid var(--line); border-radius: var(--r); background: var(--surface);
+  opacity: .5; transition: opacity .3s, border-color .3s, box-shadow .3s, transform .24s var(--ease); }
+.ach.got { opacity: 1; border-color: color-mix(in srgb, var(--cyan) 34%, transparent);
+  box-shadow: var(--glow-soft); }
+.ach.got:hover { transform: translateY(-2px); }
+.ach-ic { flex: none; width: 38px; height: 38px; border-radius: 11px; display: grid; place-items: center;
+  background: var(--surface-2); border: 1px solid var(--line); color: var(--txt-3); }
+.ach.got .ach-ic { color: var(--cyan); border-color: color-mix(in srgb, var(--cyan) 40%, transparent); }
+.ach-ic svg { width: 19px; height: 19px; }
+.ach-txt { min-width: 0; }
+.ach-txt b { display: block; font-size: 14px; margin-bottom: 3px; }
+.ach-txt small { display: block; font-size: 12px; line-height: 1.5; color: var(--txt-2); }
+
+/* ══════════ КОНСОЛЬНЫЕ ХЛЕБНЫЕ КРОШКИ ══════════ */
+/* Только на широком экране: на телефоне это отняло бы строку ради украшения. */
+.crumbs { display: none; }
+@media (min-width: 880px) {
+  .crumbs { display: flex; align-items: center; gap: 8px; margin-bottom: 16px;
+    font-family: var(--mono); font-size: 11.5px; letter-spacing: .04em; color: var(--txt-3);
+    padding-bottom: 10px; border-bottom: 1px solid var(--line); }
+  .crumbs::before { content: '$'; color: var(--cyan); opacity: .8; }
+  .c-path { color: var(--txt-2); }
+  .c-sep { opacity: .4; }
+  .c-cur { width: 7px; height: 13px; background: var(--cyan); opacity: .8;
+    animation: caret 1.15s steps(1) infinite; }
+  @keyframes caret { 50% { opacity: 0 } }
+}
+@media (prefers-reduced-motion: reduce) { .c-cur { animation: none } }
+
 /* ══════════ ВЫБОР ТРЕКА ══════════ */
 #picker { display: none; position: fixed; inset: 0; z-index: 190; place-items: center;
   padding: 24px; background: var(--bg); overflow-y: auto; }

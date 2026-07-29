@@ -21,6 +21,7 @@ function fresh() {
     apps: [],                // отклики на вакансии
     metrics: {},             // { "13": { hours, repos, thm, anki, efset, ... } }
     langs: {},               // { "1": { efset:"A2", anki: 310 } }
+    freezes: {},             // { "2026-09-14": 1 } — замороженный пропуск → квартал
     createdAt: null
   };
 }
@@ -89,20 +90,97 @@ const Store = {
     return DAILY.some(b => d[b.id]);
   },
 
-  /* ---------- streak: подряд идущие БУДНИ с хотя бы одним закрытым блоком ---------- */
-  streak() {
-    let n = 0;
+  /* ---------- streak ----------
+     Считаем по будням. Пропуск НЕ обнуляет цепочку — это принципиально:
+     обнуление и есть та точка, где люди бросают. Вместо него два механизма:
+
+     · Долг. Работа в выходной даёт кредит, которым закрывается пропущенный
+       будний день. Не успел в среду — отработал в субботу, цепочка цела.
+     · Заморозка. Две на квартал, на сессию и болезнь. Замороженный день
+       вычёркивается из счёта совсем.
+
+     Кредит намеренно не привязан жёстко к своей неделе: считаем в пользу
+     человека. Цель метрики — вернуть его к работе, а не выписать штраф. */
+  streakInfo() {
+    const freezes = this.d.freezes || {};
+    let days = 0, credits = 0, covered = 0;
     const cur = new Date();
     cur.setHours(12, 0, 0, 0);
     // если сегодня ещё ничего не сделано — начинаем считать со вчера
     if (!this.dayAny(iso(cur))) cur.setDate(cur.getDate() - 1);
+
     for (let guard = 0; guard < 500; guard++) {
-      const dow = cur.getDay();
-      if (dow === 0 || dow === 6) { cur.setDate(cur.getDate() - 1); continue; }
-      if (this.dayAny(iso(cur))) { n++; cur.setDate(cur.getDate() - 1); }
-      else break;
+      const day = iso(cur), dow = cur.getDay();
+      const back = () => cur.setDate(cur.getDate() - 1);
+
+      if (dow === 0 || dow === 6) {           // выходной
+        if (this.dayAny(day)) credits++;      // поработал — это кредит на долг
+        back(); continue;
+      }
+      if (this.dayAny(day)) { days++; back(); continue; }
+      if (freezes[day])      { back(); continue; }          // заморожен
+      if (credits > 0)       { credits--; covered++; back(); continue; }  // закрыт выходным
+      break;                                                 // вот здесь цепочка рвётся
     }
-    return n;
+    return { days, covered, credits };
+  },
+  streak() { return this.streakInfo().days; },
+
+  /** Квартал плана, в который попадает дата. */
+  quarterOf(day) {
+    const w = WEEKS.find(w => day >= w.start && day <= w.end);
+    return w ? w.q : 1;
+  },
+  freezesLeft(q) {
+    const used = Object.values(this.d.freezes || {}).filter(x => x === q).length;
+    return Math.max(0, 2 - used);
+  },
+  /** Заморозить пропущенный будний день. Бросает понятную ошибку, если нельзя. */
+  freeze(day) {
+    const dow = parseISO(day).getDay();
+    if (dow === 0 || dow === 6) throw new Error('Выходные и так не считаются пропуском.');
+    if (day >= iso(new Date()))  throw new Error('Заморозить можно только прошедший день.');
+    if (this.dayAny(day))        throw new Error('В этот день ты работал — замораживать нечего.');
+    const q = this.quarterOf(day);
+    if (this.freezesLeft(q) <= 0) throw new Error('Заморозки на этот квартал кончились. Их две — это намеренно.');
+    (this.d.freezes = this.d.freezes || {})[day] = q;
+    this.save();
+    return q;
+  },
+  /** Ближайший пропуск, который рвёт цепочку. Его и предлагаем заморозить. */
+  breakingDay() {
+    const freezes = this.d.freezes || {};
+    let credits = 0;
+    const cur = new Date();
+    cur.setHours(12, 0, 0, 0);
+    if (!this.dayAny(iso(cur))) cur.setDate(cur.getDate() - 1);
+    for (let guard = 0; guard < 90; guard++) {
+      const day = iso(cur), dow = cur.getDay();
+      const back = () => cur.setDate(cur.getDate() - 1);
+      if (dow === 0 || dow === 6) { if (this.dayAny(day)) credits++; back(); continue; }
+      if (this.dayAny(day)) { back(); continue; }
+      if (freezes[day])     { back(); continue; }
+      if (credits > 0)      { credits--; back(); continue; }
+      return day;
+    }
+    return null;
+  },
+
+  /* ---------- достижения ---------- */
+  /** Задача ищется по тексту, а не по индексу: содержание недель ещё правится. */
+  taskDoneMatching(re) {
+    return WEEKS.some(w => {
+      const done = (this.d.weeks[w.w] || {}).tasks || [];
+      return w.tasks.some((txt, i) => done.includes(i) && re.test(txt));
+    });
+  },
+  quarterClosed(q) {
+    const ws = WEEKS.filter(w => w.q === q);
+    return ws.length > 0 && ws.every(w => (this.d.weeks[w.w] || {}).status === 'Закрыта');
+  },
+  achievements() {
+    const t = this.totals();
+    return ACHIEVEMENTS.map(a => Object.assign({}, a, { got: !!a.test(t, this) }));
   },
 
   /* ---------- портфолио ---------- */

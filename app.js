@@ -59,12 +59,23 @@ function buildNav() {
     `<button class="${n.id === VIEW ? 'on' : ''}" data-go="${n.id}">${ICONS[n.id]}<span>${n.label}</span></button>`).join('');
   $$('#tabbar [data-go], #snav [data-go]').forEach(b => b.onclick = () => go(b.dataset.go));
 }
+const CRUMB = { today:'today', year:'year', weeks:'weeks', career:'career', rank:'rank', more:'more' };
+function paintCrumbs() {
+  const el = $('#crumbs');
+  if (!el) return;
+  const cw = currentWeek();
+  el.innerHTML = `<span class="c-path">~/soc-365/${esc(CRUMB[VIEW] || VIEW)}</span>` +
+    `<span class="c-sep">·</span><span class="c-meta">${isBeforeStart() ? 'до старта' : 'W' + cw + '/52'}</span>` +
+    `<span class="c-cur"></span>`;
+}
+
 function go(id) {
   VIEW = id;
   $$('.view').forEach(v => v.classList.toggle('on', v.id === 'v-' + id));
   $$('#tabbar [data-go], #snav [data-go]').forEach(b => b.classList.toggle('on', b.dataset.go === id));
   window.scrollTo({ top: 0, behavior: 'instant' });
   render(id);
+  paintCrumbs();
   decodeHeadings($('#v-' + id));
 }
 function toast(msg) {
@@ -148,6 +159,7 @@ function renderAll() {
   ['today','year','weeks','career','rank','more'].forEach(render);
   const cw = currentWeek();
   $('#topWeek').textContent = isBeforeStart() ? 'до старта' : 'W' + cw;
+  paintCrumbs();
   const t = Store.totals();
   $('#sideProgress').innerHTML =
     `<div class="row" style="justify-content:space-between"><span>YEAR</span><b>${t.pct}%</b></div>
@@ -226,7 +238,7 @@ function rToday() {
     ${stat(t.pct + '%', 'года пройдено')}
   </div>`;
 
-  if (t.streak >= 3) h += `<p class="tiny dim mt center">${t.streak} ${plural(t.streak, 'будний день', 'будних дня', 'будних дней')} подряд. Главное правило — не пропустить 3 дня подряд.</p>`;
+  h += streakCard();
 
   /* правило дня */
   const rule = RULES[dayOfYear() % RULES.length];
@@ -237,6 +249,14 @@ function rToday() {
   </div>`;
 
   $('#v-today').innerHTML = h;
+
+  const fb = $('#freezeBtn');
+  if (fb) fb.onclick = () => {
+    const day = fb.dataset.day;
+    if (!confirm(`Заморозить ${fmtRU(day)}?\n\nДень перестанет считаться пропуском. Заморозок две на квартал — тратить стоит на сессию и болезнь, а не на лень.`)) return;
+    try { Store.freeze(day); Sync.schedule(); toast('Заморожено'); renderAll(); }
+    catch (e) { alert(e.message); }
+  };
 
   $$('[data-block]').forEach(el => el.onclick = () => {
     const on = Store.toggleBlock(today, el.dataset.block);
@@ -520,6 +540,37 @@ function bindWeekCard(root) {
 }
 
 /* ─────────── КАРЬЕРА ─────────── */
+/* Карточка streak. Показываем не только число, но и почему оно не
+   обнулилось — иначе механика долга и заморозок остаётся невидимой. */
+function streakCard() {
+  const si = Store.streakInfo();
+  const brk = Store.breakingDay();
+  const q = currentWeek() ? WEEKS[currentWeek() - 1].q : 1;
+  const left = Store.freezesLeft(q);
+  let h = '';
+
+  const bits = [];
+  if (si.covered) bits.push(`${si.covered} ${plural(si.covered, 'пропуск закрыт', 'пропуска закрыто', 'пропусков закрыто')} работой в выходной`);
+  if (si.credits) bits.push(`${si.credits} ${plural(si.credits, 'выходной в запасе', 'выходных в запасе', 'выходных в запасе')}`);
+
+  if (si.days >= 3 || bits.length) {
+    h += `<p class="tiny dim mt center">${si.days} ${plural(si.days, 'будний день', 'будних дня', 'будних дней')} подряд${
+      bits.length ? ' · ' + bits.join(' · ') : ''}.</p>`;
+  }
+
+  if (brk) {
+    h += `<div class="card mt streak-brk">
+      <b>Цепочку рвёт ${fmtRU(brk)}</b>
+      <p class="sm muted" style="margin:6px 0 0">Один сорванный день не должен стоить месяца работы. Закрой его работой в ближайшие выходные — или потрать заморозку, если это была сессия или болезнь.</p>
+      <div class="row wrap mt">
+        <button class="btn" id="freezeBtn" data-day="${brk}"${left ? '' : ' disabled'}>FREEZE ${fmtShort(brk)}</button>
+        <span class="tiny dim">осталось ${left} ${plural(left, 'заморозка', 'заморозки', 'заморозок')} на Q${q} · всего две за квартал</span>
+      </div>
+    </div>`;
+  }
+  return h;
+}
+
 function rCareer() {
   const t = Store.totals();
   let h = `<div class="section-h"><h2>PORTFOLIO</h2><span class="rule"></span><span class="pill ${t.repos === 8 ? 'ok' : ''}">${t.repos}/8</span></div>`;
@@ -587,6 +638,16 @@ function rCareer() {
       <div><pre class="code">${esc(COLD_EMAIL)}</pre>
       <p class="tiny dim mt">Работает за счёт конкретики вместо «хочу развиваться», честного признания отсутствия вакансии и упоминания готовности к ночным сменам — там дыра в укомплектованности любого SOC.</p>
       <button class="btn sm" data-copy="mail">COPY</button></div></details>`;
+
+  const ach = Store.achievements();
+  h += `<div class="section-h"><h2>ACHIEVEMENTS</h2><span class="rule"></span>
+    <span class="tiny dim mono">${ach.filter(a => a.got).length}/${ach.length}</span></div>
+    <div class="ach-grid">${ach.map(a => `
+      <div class="ach${a.got ? ' got' : ''}">
+        <span class="ach-ic">${ICONS[a.icon] || ICONS.shield}</span>
+        <span class="ach-txt"><b>${esc(a.name)}</b><small>${esc(a.desc)}</small></span>
+      </div>`).join('')}</div>
+    <p class="tiny dim mt2">Здесь нет наград за «зашёл три дня подряд». Награда за присутствие обесценивает награду за работу.</p>`;
 
   $('#v-career').innerHTML = h;
 
