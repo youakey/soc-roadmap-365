@@ -11,16 +11,30 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="SOC 365">
 <meta name="robots" content="noindex, nofollow">
-<link rel="manifest" href="manifest.webmanifest">
-<link rel="apple-touch-icon" href="icon.svg?v=9">
-<link rel="icon" href="icon.svg?v=9" type="image/svg+xml">
-<link rel="stylesheet" href="styles.css?v=9">
+<link rel="manifest" href="manifest.webmanifest?v=10">
+<link rel="apple-touch-icon" href="icon.svg?v=10">
+<link rel="icon" href="icon.svg?v=10" type="image/svg+xml">
+<link rel="stylesheet" href="styles.css?v=10">
 </head>
 <body>
 
 <div class="env" aria-hidden="true">
   <div class="grid"></div>
   <span class="orb"></span><span class="orb"></span><span class="orb"></span>
+
+  <!-- фоновый HUD: концентрические кольца радара, медленно вращаются -->
+  <div class="hud-bg">
+    <span class="hud-r r1"></span>
+    <span class="hud-r r2"></span>
+    <span class="hud-r r3"></span>
+    <span class="hud-r r4"></span>
+    <span class="hud-sweep"></span>
+    <span class="hud-cross"></span>
+  </div>
+
+  <!-- падающие столбцы hex, наполняются из app.js -->
+  <div class="rain" id="envRain"></div>
+
   <div class="scan"></div>
 </div>
 
@@ -47,6 +61,7 @@
   <header class="topbar">
     <div class="brand"><span class="brand-mark" id="brandMark"></span><span>SOC 365</span></div>
     <span class="spacer"></span>
+    <span class="netstat" id="netStat" aria-hidden="true"><i class="dot"></i><span class="lbl" id="netLbl">LINK</span><span id="netClock">--:--:--</span></span>
     <span class="pill accent" id="topWeek">—</span>
     <button class="icon-btn" id="themeBtn" title="Тема"></button>
     <button class="icon-btn" id="outBtn" title="Выйти из аккаунта"></button>
@@ -85,12 +100,12 @@
 </svg>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-<script src="config.js?v=9"></script>
-<script src="data-weeks.js?v=9"></script>
-<script src="data.js?v=9"></script>
-<script src="store.js?v=9"></script>
-<script src="auth.js?v=9"></script>
-<script src="sync.js?v=9"></script>
-<script src="app.js?v=9"></script>
+<script src="config.js?v=10"></script>
+<script src="data-weeks.js?v=10"></script>
+<script src="data.js?v=10"></script>
+<script src="store.js?v=10"></script>
+<script src="auth.js?v=10"></script>
+<script src="sync.js?v=10"></script>
+<script src="app.js?v=10"></script>
 </body>
 </html>

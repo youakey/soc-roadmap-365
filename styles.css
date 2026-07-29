@@ -109,6 +109,96 @@ body {
 [data-theme="light"] .env .grid { background-image:
   linear-gradient(to right,#0891a814 1px,transparent 1px), linear-gradient(to bottom,#0891a814 1px,transparent 1px); }
 
+/* ── фоновый HUD: радарные кольца и падающий hex ──────────────────
+   Всё живёт внутри .env (position: fixed + overflow: hidden), поэтому
+   вращение и сдвиги не расширяют документ — та самая ловушка из §3.5.
+   Прозрачности намеренно на грани видимости: фон должен угадываться,
+   а не спорить с текстом. */
+.env .hud-bg {
+  position: absolute; left: 50%; top: 44%;
+  width: min(104vmin, 1040px); aspect-ratio: 1;
+  transform: translate(-50%, -50%);
+  opacity: .9; contain: layout paint style;
+}
+.env .hud-r { position: absolute; border-radius: 50%; will-change: transform; }
+
+/* внешнее кольцо — крупные штрихи, как лимб прибора */
+.env .hud-r.r1 {
+  inset: 0;
+  background: repeating-conic-gradient(from 0deg,
+    #22e3d41f 0deg .55deg, transparent .55deg 7.5deg);
+  -webkit-mask: radial-gradient(circle, transparent 0 calc(50% - 9px), #000 calc(50% - 9px) calc(50% - 1px), transparent calc(50% - 1px));
+          mask: radial-gradient(circle, transparent 0 calc(50% - 9px), #000 calc(50% - 9px) calc(50% - 1px), transparent calc(50% - 1px));
+  animation: hudSpin 240s linear infinite;
+}
+/* второе — тонкий пунктир, крутится в обратную сторону */
+.env .hud-r.r2 {
+  inset: 13%; border: 1px dashed #22e3d417;
+  animation: hudSpin 170s linear infinite reverse;
+}
+/* третье — частая насечка */
+.env .hud-r.r3 {
+  inset: 26%;
+  background: repeating-conic-gradient(from 0deg,
+    #4d9fff1c 0deg .4deg, transparent .4deg 3deg);
+  -webkit-mask: radial-gradient(circle, transparent 0 calc(50% - 6px), #000 calc(50% - 6px) calc(50% - 1px), transparent calc(50% - 1px));
+          mask: radial-gradient(circle, transparent 0 calc(50% - 6px), #000 calc(50% - 6px) calc(50% - 1px), transparent calc(50% - 1px));
+  animation: hudSpin 120s linear infinite;
+}
+/* ядро — сплошной ободок с бликом */
+.env .hud-r.r4 {
+  inset: 39%; border: 1px solid #a78bfa14;
+  animation: hudSpin 90s linear infinite reverse;
+}
+.env .hud-cross {
+  position: absolute; inset: 13%;
+  background:
+    linear-gradient(to right, transparent calc(50% - .5px), #22e3d40d calc(50% - .5px), #22e3d40d calc(50% + .5px), transparent calc(50% + .5px)),
+    linear-gradient(to bottom, transparent calc(50% - .5px), #22e3d40d calc(50% - .5px), #22e3d40d calc(50% + .5px), transparent calc(50% + .5px));
+  -webkit-mask: radial-gradient(circle, #000 0 48%, transparent 62%);
+          mask: radial-gradient(circle, #000 0 48%, transparent 62%);
+  animation: hudSpin 300s linear infinite;
+}
+/* луч развёртки — то, что «загадочно крутится» */
+.env .hud-sweep {
+  position: absolute; inset: 4%; border-radius: 50%;
+  background: conic-gradient(from 0deg,
+    transparent 0deg, #22e3d400 6deg, #22e3d412 44deg, #22e3d41c 56deg, transparent 62deg);
+  -webkit-mask: radial-gradient(circle, #000 0 54%, transparent 74%);
+          mask: radial-gradient(circle, #000 0 54%, transparent 74%);
+  animation: hudSpin 34s linear infinite;
+  will-change: transform;
+}
+@keyframes hudSpin { to { transform: rotate(360deg) } }
+
+/* падающий hex: чуть заметные столбцы данных */
+.env .rain { position: absolute; inset: 0; overflow: hidden; }
+.env .rain i {
+  position: absolute; top: 0; display: block;
+  font-family: var(--mono); font-size: 11px; line-height: 1.5;
+  letter-spacing: .06em; white-space: pre; color: #22e3d4;
+  opacity: .05; text-shadow: 0 0 6px #22e3d4;
+  animation-name: rainFall; animation-timing-function: linear; animation-iteration-count: infinite;
+  will-change: transform;
+}
+.env .rain i::first-line { color: #b9fff7; }
+@keyframes rainFall { from { transform: translate3d(0, -102%, 0) } to { transform: translate3d(0, 102vh, 0) } }
+
+[data-theme="light"] .env .rain { display: none; }
+[data-theme="light"] .env .hud-bg { opacity: .5; }
+[data-theme="light"] .env .hud-r.r1,
+[data-theme="light"] .env .hud-r.r3 { background: none; border: 1px solid #0891a812; }
+/* На узком экране от фона остаются только кольца.
+   Дело не в кадрах, а в памяти: каждое вращающееся кольцо — отдельный
+   композиторский слой во весь HUD, при DPR 3 это десятки мегабайт
+   текстур поверх орбов с blur(96px). Дождь, зерно, частая насечка
+   и перекрестье выключены; вращение колец остаётся. */
+@media (max-width: 700px) {
+  .env .hud-bg { top: 40%; width: 112vmin; }
+  .env .hud-r.r3, .env .hud-cross, .env .rain { display: none; }
+}
+@media (max-width: 700px) { .env::before { display: none; } }
+
 h1,h2,h3,h4 { margin: 0; font-weight: 660; letter-spacing: -.02em; line-height: 1.22; }
 h1 { font-size: 26px; } h2 { font-size: 18px; } h3 { font-size: 15.5px; }
 p { margin: 0 0 10px; }
@@ -491,17 +581,99 @@ details.acc > summary::after { content: '+'; font-family: var(--mono); color: va
 details.acc[open] > summary::after { transform: rotate(135deg); }
 details.acc > div { padding: 0 15px 15px; animation: expand .34s var(--ease) both; }
 
-.timer { text-align: center; padding: 8px 0 3px; position: relative; }
-.timer .tt { font-family: var(--mono); font-size: 52px; font-weight: 700; letter-spacing: -.03em; line-height: 1;
+/* ══════════ ТАЙМЕР: HUD-циферблат ══════════
+   Кольцо прогресса + луч развёртки + бегущий hex под цифрами.
+   Всё вращающееся заперто в .tdial с overflow: hidden (§3.5). */
+.timer { text-align: center; padding: 2px 0 0; position: relative; }
+
+.tdial {
+  position: relative; width: min(272px, 76vw); aspect-ratio: 1;
+  margin: 0 auto; display: grid; place-items: center;
+  border-radius: 50%; overflow: hidden;
+}
+.tsvg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.t-rail  { fill: none; stroke: var(--line); stroke-width: 2; }
+.t-ticks { fill: none; stroke: color-mix(in srgb, var(--cyan) 30%, transparent);
+  stroke-width: 5; stroke-dasharray: 1.4 6.87; opacity: .5;
+  transform-origin: 110px 110px; }
+.timer.run .t-ticks { animation: tTicks 60s linear infinite; opacity: .85; }
+@keyframes tTicks { to { transform: rotate(360deg) } }
+.t-arc {
+  fill: none; stroke: url(#ringGrad); stroke-width: 5; stroke-linecap: round;
+  transform: rotate(-90deg); transform-origin: 110px 110px;
+  transition: stroke-dashoffset .5s var(--ease);
+  filter: drop-shadow(0 0 9px #22e3d47a);
+}
+.t-head { transition: transform .5s var(--ease); }
+.t-head circle { fill: #d7fffa; filter: drop-shadow(0 0 7px var(--cyan)); }
+.timer:not(.run):not(.done) .t-head { opacity: 0; }
+
+/* луч развёртки — крутится, только пока таймер идёт */
+.tsweep {
+  position: absolute; inset: 7%; border-radius: 50%; opacity: 0;
+  background: conic-gradient(from 0deg, transparent 0deg,
+    color-mix(in srgb, var(--cyan) 3%, transparent) 20deg,
+    color-mix(in srgb, var(--cyan) 22%, transparent) 52deg, transparent 64deg);
+  -webkit-mask: radial-gradient(circle, #000 0 52%, transparent 76%);
+          mask: radial-gradient(circle, #000 0 52%, transparent 76%);
+  transition: opacity .45s var(--ease); will-change: transform;
+}
+.timer.run .tsweep { opacity: 1; animation: hudSpin 3.4s linear infinite; }
+.timer.done .tsweep { opacity: .5; animation: hudSpin 9s linear infinite; }
+
+/* импульс при добавлении минут */
+.tflash {
+  position: absolute; inset: 15%; border-radius: 50%;
+  border: 1px solid var(--cyan); opacity: 0; pointer-events: none;
+}
+.timer.bump .tflash { animation: tRipple .66s var(--ease); }
+@keyframes tRipple { from { opacity: .8; transform: scale(.7) } to { opacity: 0; transform: scale(1.4) } }
+
+.tcore { position: relative; z-index: 2; }
+.timer .tt {
+  font-family: var(--mono); font-size: clamp(38px, 12vw, 54px); font-weight: 700;
+  letter-spacing: -.03em; line-height: 1;
   background: var(--grad); -webkit-background-clip: text; background-clip: text;
   color: transparent; -webkit-text-fill-color: transparent; font-variant-numeric: tabular-nums;
-  filter: drop-shadow(0 0 18px #22e3d44d); }
-.timer.run .tt { animation: tick 1s ease-in-out infinite; }
-.timer.done .tt { animation: none; filter: drop-shadow(0 0 22px #22e3d4a6); }
-.timer .bar { max-width: 260px; margin-left: auto; margin-right: auto; }
+  filter: drop-shadow(0 0 18px #22e3d44d);
+}
+.timer.run  .tt { animation: tick 1s ease-in-out infinite; }
+.timer.warn .tt { background: var(--grad-warm); animation: tick .55s ease-in-out infinite;
+  filter: drop-shadow(0 0 22px #ffb02077); }
+.timer.warn .t-arc { stroke: var(--amber); filter: drop-shadow(0 0 10px #ffb02088); }
+.timer.warn .t-head circle { fill: #ffe6b3; filter: drop-shadow(0 0 7px var(--amber)); }
+.timer.done .tt { animation: none; filter: drop-shadow(0 0 24px #22e3d4a6); }
 @keyframes tick { 50% { opacity: .68 } }
+
 .timer .tl { font-family: var(--mono); font-size: 10.5px; color: var(--txt-3); margin-top: 7px;
   font-weight: 650; letter-spacing: .12em; text-transform: uppercase; }
+/* строка «телеметрии» — обновляется вместе с цифрами */
+.timer .thex { font-family: var(--mono); font-size: 9px; letter-spacing: .16em;
+  color: var(--txt-3); opacity: .6; margin-top: 5px; min-height: 12px; white-space: nowrap; }
+.timer.run .thex { color: var(--cyan); opacity: .5; }
+
+/* HUD-уголки вокруг циферблата: без transform, чистая геометрия */
+.timer .tc { position: absolute; width: 15px; height: 15px; pointer-events: none;
+  border: 1.5px solid color-mix(in srgb, var(--cyan) 34%, transparent); opacity: .6; }
+.timer .tc1 { top: 2px; left: 4px;    border-right: 0; border-bottom: 0; }
+.timer .tc2 { top: 2px; right: 4px;   border-left: 0;  border-bottom: 0; }
+.timer .tc3 { bottom: 2px; left: 4px; border-right: 0; border-top: 0; }
+.timer .tc4 { bottom: 2px; right: 4px;border-left: 0;  border-top: 0; }
+.timer.run .tc { animation: tCorner 2.6s ease-in-out infinite; }
+@keyframes tCorner { 50% { opacity: 1; border-color: var(--cyan) } }
+
+/* ── добор минут на ходу ── */
+.tadd { gap: 6px; margin-top: 12px; }
+.tadd .tchip { font-family: var(--mono); font-weight: 700; letter-spacing: .04em;
+  min-width: 52px; padding-left: 10px; padding-right: 10px; }
+.tadd .tchip:not(.minus) { border-color: color-mix(in srgb, var(--cyan) 32%, transparent);
+  color: var(--cyan); }
+.tadd .tchip:not(.minus):hover { border-color: var(--cyan); box-shadow: var(--glow-soft); }
+.tadd .tchip.minus { color: var(--txt-3); }
+.tadd .tchip.minus:hover { color: var(--amber); border-color: color-mix(in srgb, var(--amber) 40%, transparent); }
+.tadd .tchip:active { transform: scale(.94); }
+.tadd-hint { font-family: var(--mono); font-size: 9.5px; letter-spacing: .1em;
+  color: var(--txt-3); text-transform: uppercase; margin-top: 8px; opacity: .75; }
 
 .empty { text-align: center; padding: 38px 16px; color: var(--txt-3); }
 .empty .ic { opacity: .3; margin-bottom: 10px; }
@@ -695,6 +867,7 @@ table.rank tr.me td:first-child::before { content: '> '; }
   .section-h h2 { animation: none; -webkit-text-fill-color: currentColor; color: inherit;
     background: none; }
   .env .grid { animation: none; }
+  .env .hud-bg, .env .rain { display: none; }
 }
 
 @media (max-width: 430px) { .g2 { grid-template-columns: 1fr; } }
@@ -705,11 +878,145 @@ table.rank tr.me td:first-child::before { content: '> '; }
   .timer .tt { font-size: 42px; }
 }
 
+/* ══════════════════════════════════════════════════════════════
+   V4 — СЛОЙ ОТДЕЛКИ «GLASS CONSOLE»
+   Надстройка над v3: материал поверхностей, зерно и виньетка,
+   сегментированные шкалы, состояния фокуса, служебная телеметрия.
+   Ничего не переставляет в разметке — только уточняет вид,
+   поэтому слой можно снять целиком, если что-то не зайдёт.
+   ══════════════════════════════════════════════════════════════ */
+
+/* ── зерно и виньетка: убирают «пластиковость» градиентов ──
+   Статичные, без анимации: фон и так живой, а лишняя
+   полноэкранная перерисовка на слабом процессоре ни к чему.
+   Зерно снимается на узком экране (см. блок @media 700px выше). */
+.env::before {
+  content: ''; position: absolute; inset: 0; pointer-events: none; opacity: .03;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size: 140px 140px;
+}
+.env::after {
+  content: ''; position: absolute; inset: 0; pointer-events: none;
+  background: radial-gradient(ellipse 96% 76% at 50% 32%, transparent 38%, var(--void) 104%);
+  opacity: .78;
+}
+[data-theme="light"] .env::before { opacity: .022; }
+[data-theme="light"] .env::after  { opacity: .4; }
+
+/* ── системные мелочи, которые видно каждый день ── */
+::selection { background: color-mix(in srgb, var(--cyan) 32%, transparent); color: var(--txt); }
+html { scrollbar-color: var(--line-hot) transparent; scrollbar-width: thin; }
+::-webkit-scrollbar { width: 11px; height: 11px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: var(--line-hot); border-radius: 7px;
+  border: 3px solid transparent; background-clip: padding-box;
+}
+::-webkit-scrollbar-thumb:hover { background: color-mix(in srgb, var(--cyan) 60%, var(--line-hot)); background-clip: padding-box; }
+:focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; border-radius: 5px; }
+.btn:focus-visible, .icon-btn:focus-visible, .tab:focus-visible { box-shadow: var(--glow); }
+
+/* ── материал поверхностей: верхний блик вместо плоской заливки ── */
+.card, .stat, .ach, .track, details.acc, .chk, .gate-logo, .brand-mark {
+  background-image: linear-gradient(180deg, #ffffff08 0%, #ffffff00 46%);
+}
+[data-theme="light"] .card, [data-theme="light"] .stat, [data-theme="light"] .ach,
+[data-theme="light"] .track, [data-theme="light"] details.acc, [data-theme="light"] .chk {
+  background-image: linear-gradient(180deg, #0a142006 0%, #0a142000 46%);
+}
+.chk.on { background-image: linear-gradient(180deg, #ffffff0a 0%, #ffffff00 46%); }
+
+/* ── нумерация разделов: каждый экран считает свои секции сам ── */
+.view { counter-reset: sec; }
+.section-h { counter-increment: sec; }
+.section-h::after {
+  content: '§' counter(sec, decimal-leading-zero);
+  font-family: var(--mono); font-size: 9.5px; font-weight: 700; letter-spacing: .14em;
+  color: var(--txt-3); opacity: .5; flex: none;
+}
+
+/* ── шкалы сегментами: читается как прибор, а не как заливка ── */
+.bar { position: relative; }
+.bar::after {
+  content: ''; position: absolute; inset: 0; pointer-events: none;
+  background: repeating-linear-gradient(90deg,
+    transparent 0 calc(6.25% - 1px), var(--bg) calc(6.25% - 1px) 6.25%);
+  opacity: .55;
+}
+.timer .bar::after { display: none; }
+
+/* ── цифры-показатели ── */
+.stat b { text-shadow: 0 0 24px color-mix(in srgb, var(--cyan) 26%, transparent); }
+.stat::after {
+  content: ''; position: absolute; right: -16px; top: -16px; width: 52px; height: 52px;
+  pointer-events: none; opacity: .09;
+  background: repeating-linear-gradient(45deg, var(--cyan) 0 1px, transparent 1px 5px);
+}
+
+/* ── кнопки: подчёркивание выезжает при наведении ── */
+.btn::before {
+  content: ''; position: absolute; left: 11px; right: 11px; bottom: 5px; height: 1px;
+  background: currentColor; opacity: 0; transform: scaleX(.25);
+  transition: opacity .2s var(--ease), transform .3s var(--ease);
+}
+.btn:hover:not(:disabled)::before { opacity: .38; transform: scaleX(1); }
+.btn.primary::before { background: #041318; }
+.btn:disabled::before { display: none; }
+
+/* ── таббар: подсветка под активной вкладкой ── */
+.tab.on::after {
+  content: ''; position: absolute; inset: 0; pointer-events: none;
+  background: radial-gradient(ellipse 62% 74% at 50% 0%, #22e3d41c, transparent 72%);
+}
+
+/* ── строка состояния в шапке: часы и индикатор канала ── */
+.netstat {
+  display: none; align-items: center; gap: 7px; padding: 4px 10px; border-radius: 6px;
+  font-family: var(--mono); font-size: 10.5px; font-weight: 650; letter-spacing: .1em;
+  color: var(--txt-3); background: var(--surface); border: 1px solid var(--line);
+  font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+.netstat .dot {
+  width: 6px; height: 6px; border-radius: 50%; background: var(--green);
+  box-shadow: 0 0 8px var(--green); animation: netPulse 2.4s ease-in-out infinite;
+}
+.netstat.off .dot { background: var(--amber); box-shadow: 0 0 8px var(--amber); }
+.netstat .lbl { color: color-mix(in srgb, var(--cyan) 78%, var(--txt-2)); }
+@keyframes netPulse { 50% { opacity: .28; transform: scale(.8) } }
+@media (min-width: 700px) { .netstat { display: inline-flex; } }
+
+/* ── толстовки поверхностей на широком экране ── */
+@media (min-width: 880px) {
+  .card:hover { border-color: var(--line-hot); }
+  .snav button.on::after {
+    content: '◂'; margin-left: auto; font-size: 11px; opacity: .8;
+    animation: blinkCaret 2.4s steps(1) infinite;
+  }
+  /* терминальная рамка вокруг рабочей области — задел из §4, аккуратно */
+  main { position: relative; }
+  main::before, main::after {
+    content: ''; position: absolute; width: 18px; height: 18px; pointer-events: none;
+    border-color: color-mix(in srgb, var(--cyan) 26%, transparent); opacity: .8;
+  }
+  main::before { top: 10px; left: 14px;  border-top: 1px solid; border-left: 1px solid; }
+  main::after  { top: 10px; right: 14px; border-top: 1px solid; border-right: 1px solid; }
+}
+
 /* ══════════ ДОСТУПНОСТЬ / ПРОИЗВОДИТЕЛЬНОСТЬ ══════════ */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important;
     transition-duration: .01ms !important; }
-  .env .orb, .env .grid, .env .scan, .radar { display: none; }
+  /* Фон снимается целиком, включая статичные зерно и виньетку: когда
+     всё остальное погашено, они остаются висеть сами по себе и только
+     съедают контраст. Под reduce подложка — это ровный var(--bg). */
+  .env { display: none; }
+  .radar { display: none; }
+  /* Явно, а не только через звёздочку выше: список читается как гарантия. */
+  .env .hud-r, .env .hud-sweep, .env .hud-cross, .env .rain i,
+  .tsweep, .t-ticks, .timer .tt, .timer .tc, .tflash,
+  .netstat .dot, .snav button.on::after, .section-h::before,
+  .bar > i::after, .btn.primary::after, .topbar::after, .c-cur
+    { animation: none !important; }
   .reveal { opacity: 1; transform: none; }
 }
 @media (max-width: 380px) { .env .orb:nth-of-type(3) { display: none; } }

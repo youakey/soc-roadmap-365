@@ -216,11 +216,31 @@ function rToday() {
   /* таймер */
   h += `<div class="card">
     <div class="card-t"><h3>TIMER</h3><span class="tiny dim">Досидел блок до конца — галочка встанет сама</span></div>
-    <div class="timer">
-      <div class="tt" id="tDisp">00:00</div>
-      <div class="tl" id="tLbl">выбери блок</div>
-      <div class="bar mt" style="height:4px"><i id="tBar" style="width:0%"></i></div>
+    <div class="timer" id="tBox">
+      <div class="tdial">
+        <div class="tsweep"></div>
+        <div class="tflash"></div>
+        <svg class="tsvg" viewBox="0 0 220 220" aria-hidden="true">
+          <circle class="t-rail"  cx="110" cy="110" r="94"/>
+          <circle class="t-ticks" cx="110" cy="110" r="79"/>
+          <circle class="t-arc" id="tArc" cx="110" cy="110" r="94"
+                  stroke-dasharray="${TC}" stroke-dashoffset="${TC}"/>
+          <g class="t-head" id="tHead"><circle cx="110" cy="16" r="3.6"/></g>
+        </svg>
+        <div class="tcore">
+          <div class="tt" id="tDisp">00:00</div>
+          <div class="tl" id="tLbl">выбери блок</div>
+          <div class="thex" id="tHex">awaiting task</div>
+        </div>
+      </div>
+      <i class="tc tc1"></i><i class="tc tc2"></i><i class="tc tc3"></i><i class="tc tc4"></i>
     </div>
+    <div class="row wrap tadd" style="justify-content:center">
+      ${[-5, 1, 5, 10, 25].map(m =>
+        `<button class="btn sm tchip${m < 0 ? ' minus' : ''}" data-tadd="${m}" title="${m < 0 ? 'убрать' : 'добавить'} ${Math.abs(m)} мин">${m < 0 ? '−' : '+'}${Math.abs(m)}м</button>`
+      ).join('')}
+    </div>
+    <p class="tadd-hint">минуты добавляются на ходу · без блока запустится free run</p>
     <div class="row wrap mt" style="justify-content:center">
       ${blocks.map(b => {
         const mins = (b.id === 'lab' && sess) ? 35 : b.min;
@@ -274,6 +294,7 @@ function rToday() {
   });
   $$('[data-timer]').forEach(b => b.onclick = () =>
     timerStart(b.dataset.tblock, +b.dataset.timer, b.dataset.tname));
+  $$('[data-tadd]').forEach(b => b.onclick = () => timerAdd(+b.dataset.tadd));
   $('#tPause').onclick = () => tRunning() ? timerPause() : timerResume();
   $('#tReset').onclick = timerReset;
   tPaint();
@@ -310,6 +331,7 @@ function plural(n, a, b, c) {
    payload: запущенный таймер — дело конкретного устройства, тащить его
    на второй телефон бессмысленно. */
 const TKEY = 'soc365.timer';
+const TC = +(2 * Math.PI * 94).toFixed(1);   // длина кольца прогресса, r=94
 let TIMER = null;
 let T = { block: null, name: '', total: 0, endsAt: null, left: null, done: false };
 
@@ -339,6 +361,44 @@ function timerResume() {
   T.endsAt = Date.now() + T.left * 1000; T.left = null;
   tSave(); tLoop(); tPaint();
 }
+/** Добор минут на ходу.
+ *
+ *  Отсчёт живёт по стенной метке `endsAt` (§3.7), поэтому «добавить пять
+ *  минут» — это сдвинуть метку, а не тронуть счётчик. Вместе с меткой
+ *  растёт и `total`, иначе кольцо прогресса прыгнуло бы назад.
+ *
+ *  Кнопки работают в любом состоянии: на паузе двигают остаток, после
+ *  финиша запускают блок заново, а если блок не выбран вовсе — поднимают
+ *  свободный отсчёт. Галочку такой таймер не ставит: она положена только
+ *  за честно досиженный блок. */
+function timerAdd(min) {
+  const sec = min * 60;
+  const idle = !T.block && !T.endsAt && T.left == null && !T.done;
+
+  if (idle) {
+    if (sec <= 0) return;                       // из нуля минусом не уйдёшь
+    T = { block: null, name: 'FREE RUN', total: sec,
+          endsAt: Date.now() + sec * 1000, left: null, done: false };
+  } else if (T.done) {
+    if (sec <= 0) return;                       // блок уже закрыт, откатывать нечего
+    T.done = false; T.left = null; T.total = sec;
+    T.endsAt = Date.now() + sec * 1000;
+  } else if (tRunning()) {
+    const left = Math.max(5, tLeft() + sec);
+    T.total = Math.max(T.total + sec, left);
+    T.endsAt = Date.now() + left * 1000;
+  } else {                                      // пауза
+    const left = Math.max(5, T.left + sec);
+    T.total = Math.max(T.total + sec, left);
+    T.left = left;
+  }
+
+  tSave(); tLoop(); tPaint(); buzz(8);
+  const box = $('#tBox');
+  if (box) { box.classList.remove('bump'); void box.offsetWidth; box.classList.add('bump'); }
+  if (idle && VIEW === 'today') rToday();       // подсветить PAUSE/RESET
+}
+
 function timerReset() {
   T = { block: null, name: '', total: 0, endsAt: null, left: null, done: false };
   tSave(); tLoop(); tPaint();
@@ -372,34 +432,55 @@ function tLoop() {
   if (tRunning()) TIMER = setInterval(tPaint, 500);
 }
 
+const HEX = () => Math.floor(Math.random() * 65536).toString(16).toUpperCase().padStart(4, '0');
+
 function tPaint() {
   const disp = $('#tDisp');
   if (!disp) { if (TIMER) { clearInterval(TIMER); TIMER = null; } return; }
 
   const left = tLeft();
-  if (tRunning() && left <= 0) { timerFinish(); return; }
+  const run = tRunning();
+  if (run && left <= 0) { timerFinish(); return; }
 
-  disp.textContent = String(Math.floor(left / 60)).padStart(2, '0') + ':' +
-                     String(left % 60).padStart(2, '0');
+  const hh = Math.floor(left / 3600);
+  disp.textContent = (hh ? String(hh) + ':' + String(Math.floor(left / 60) % 60).padStart(2, '0')
+                         : String(Math.floor(left / 60)).padStart(2, '0'))
+                     + ':' + String(left % 60).padStart(2, '0');
 
   const lbl = $('#tLbl');
   if (lbl) lbl.textContent = T.done ? 'БЛОК ЗАКРЫТ'
-    : !T.block ? 'выбери блок'
-    : tRunning() ? T.name : T.name + ' · пауза';
+    : !T.block && !T.total ? 'выбери блок'
+    : run ? (T.name || 'FREE RUN') : (T.name || 'FREE RUN') + ' · пауза';
 
-  const box = $('#v-today .timer');
-  if (box) { box.classList.toggle('run', tRunning()); box.classList.toggle('done', !!T.done); }
+  const box = $('#tBox') || $('#v-today .timer');
+  if (box) {
+    box.classList.toggle('run', run);
+    box.classList.toggle('done', !!T.done);
+    box.classList.toggle('warn', run && left <= 10);        // последние секунды — янтарь
+  }
 
-  const bar = $('#tBar');
-  if (bar) bar.style.width = T.total ? Math.round((1 - left / T.total) * 100) + '%' : '0%';
+  // кольцо прогресса и точка на его конце
+  const p = T.total ? Math.min(1, Math.max(0, 1 - left / T.total)) : 0;
+  const arc = $('#tArc');
+  if (arc) arc.setAttribute('stroke-dashoffset', (TC * (1 - p)).toFixed(1));
+  const head = $('#tHead');
+  if (head) head.setAttribute('transform', 'rotate(' + (p * 360).toFixed(2) + ' 110 110)');
+
+  // строка телеметрии: пока идёт отсчёт — живой поток, иначе статус
+  const hex = $('#tHex');
+  if (hex) hex.textContent =
+      T.done ? 'exit code 0 · block closed'
+    : run    ? '0x' + HEX() + ' · 0x' + HEX() + ' · ' + Math.round(p * 100) + '%'
+    : T.total ? '-- halted · ' + Math.round(p * 100) + '% --'
+    : 'awaiting task';
 
   const pb = $('#tPause');
-  if (pb) { pb.textContent = tRunning() ? 'PAUSE' : 'RESUME'; pb.disabled = !T.block || T.done; }
+  if (pb) { pb.textContent = run ? 'PAUSE' : 'RESUME'; pb.disabled = (!T.block && !T.total) || T.done; }
   const rb = $('#tReset');
-  if (rb) rb.disabled = !T.block;
+  if (rb) rb.disabled = !T.block && !T.total;
 
   // на десктопе остаток видно прямо во вкладке
-  if (tRunning()) document.title = disp.textContent + ' · ' + T.name;
+  if (run) document.title = disp.textContent + ' · ' + (T.name || 'FREE RUN');
 }
 
 /** Таймер мог доработать, пока вкладка была закрыта или телефон заблокирован. */
@@ -1052,6 +1133,52 @@ function rRank() {
 
 function stat(v, l) { return `<div class="stat hud"><b>${esc(v)}</b><span>${esc(l)}</span></div>`; }
 function card(inner) { return `<div class="card">${inner}</div>`; }
+
+/* ══════════════════ ФОН ══════════════════ */
+/* Столбцы hex в подложке. Рисуем один раз при загрузке: дальше всё
+   двигает CSS, поэтому на прокрутке и таймере это ничего не стоит.
+   Живёт внутри .env (fixed + overflow: hidden) — документ не расширяет. */
+function envRain() {
+  const box = $('#envRain');
+  if (!box || REDUCED) return;
+  const cols = window.innerWidth < 640 ? 6 : 11;
+  const glyphs = '0123456789ABCDEF';
+  let h = '';
+  for (let i = 0; i < cols; i++) {
+    let txt = '';
+    for (let j = 0; j < 26; j++) txt += glyphs[(Math.random() * 16) | 0] + '\n';
+    const dur = 34 + Math.random() * 46;
+    h += `<i style="left:${(i / cols) * 100 + Math.random() * (60 / cols)}%;
+      animation-duration:${dur.toFixed(1)}s; animation-delay:-${(Math.random() * dur).toFixed(1)}s;
+      opacity:${(0.035 + Math.random() * 0.03).toFixed(3)};
+      font-size:${(9 + Math.random() * 4).toFixed(1)}px">${txt}</i>`;
+  }
+  box.innerHTML = h;
+}
+envRain();
+
+/* Строка состояния в шапке: стенные часы и индикатор канала.
+   Часы идут по Date.now(), поэтому фоновое удушение интервалов
+   им не вредит — та же логика, что у таймера (§3.7). */
+function netStat() {
+  const el = $('#netStat'), clock = $('#netClock'), lbl = $('#netLbl');
+  if (!el || !clock) return;
+  const two = n => String(n).padStart(2, '0');
+  const paint = () => {
+    const d = new Date();
+    clock.textContent = two(d.getHours()) + ':' + two(d.getMinutes()) + ':' + two(d.getSeconds());
+  };
+  const link = () => {
+    const on = navigator.onLine !== false;
+    el.classList.toggle('off', !on);
+    if (lbl) lbl.textContent = on ? 'LINK' : 'OFFLINE';
+  };
+  paint(); link();
+  setInterval(paint, 1000);
+  window.addEventListener('online', link);
+  window.addEventListener('offline', link);
+}
+netStat();
 
 /* ══════════════════ INIT ══════════════════ */
 Store.load();
