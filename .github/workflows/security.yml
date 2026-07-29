@@ -47,8 +47,11 @@ jobs:
       - name: Опасные синки
         run: |
           set -uo pipefail
-          PATTERN='\beval\s*\(|new\s+Function\s*\(|document\.write|\.outerHTML\s*=|insertAdjacentHTML|javascript:'
-          if grep -nEr --include='*.js' --include='*.html' "$PATTERN" . ; then
+          # javascript: ищем только там, где он опасен — в атрибуте, а не
+          # в тексте. Первая версия паттерна ловила слово в комментарии,
+          # который его же и объясняет, и роняла сборку на security.js.
+          PATTERN='\beval[[:space:]]*\(|new[[:space:]]+Function[[:space:]]*\(|document\.write|\.outerHTML[[:space:]]*=|insertAdjacentHTML|(href|src|action)[[:space:]]*=[[:space:]]*.?[[:space:]]*javascript:'
+          if grep -nEr --include='*.js' --include='*.html' --exclude-dir=node_modules "$PATTERN" . ; then
             echo "::error::Найдены опасные конструкции. Разбирать вручную."
             exit 1
           fi
@@ -68,26 +71,13 @@ jobs:
           echo "CSP на месте."
 
       # ── 3. Секреты ──────────────────────────────────────────
-      # Свой скан, без сторонних action: тащить чужой бинарник в CI,
-      # который ищет утечки, — сомнительная сделка. Ключевое здесь —
-      # отличить публикуемый publishable-ключ от service_role.
+      # Свой скрипт, без сторонних action: тащить в CI чужой бинарник,
+      # который ищет утечки, — сомнительная сделка. Скрипт разбирает
+      # JWT и смотрит claim role, а не ищет слово "service_role":
+      # первая версия падала на комментарии о том, что такого ключа
+      # здесь быть не должно.
       - name: Секреты
-        run: |
-          set -uo pipefail
-          rc=0
-          # service_role JWT: у него в payload "role":"service_role"
-          if grep -rEn --exclude-dir=.git 'service_role|sb_secret_|SUPABASE_SERVICE' . ; then
-            echo "::error::Похоже на service_role-ключ. Он НИКОГДА не должен попадать в репозиторий."; rc=1
-          fi
-          # приватные ключи и типовые токены
-          if grep -rEn --exclude-dir=.git -- '-----BEGIN [A-Z ]*PRIVATE KEY-----|gh[pousr]_[A-Za-z0-9]{16,}|AKIA[0-9A-Z]{16}' . ; then
-            echo "::error::Похоже на приватный ключ или токен."; rc=1
-          fi
-          # legacy anon-JWT: длинный eyJ... в коде тоже стоит заметить
-          if grep -rEn --exclude-dir=.git 'eyJ[A-Za-z0-9_-]{20,}\.eyJ[A-Za-z0-9_-]{20,}' . ; then
-            echo "::warning::Найден JWT в коде. Проверь, что это publishable-ключ, а не service_role."
-          fi
-          exit $rc
+        run: node tools/scan-secrets.mjs
 
       # ── 4. Цепочка поставок: SRI ────────────────────────────
       # Валит сборку, пока зависимость не запинена и не закрыта хэшем,
