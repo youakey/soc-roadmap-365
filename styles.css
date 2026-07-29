@@ -497,6 +497,8 @@ details.acc > div { padding: 0 15px 15px; animation: expand .34s var(--ease) bot
   color: transparent; -webkit-text-fill-color: transparent; font-variant-numeric: tabular-nums;
   filter: drop-shadow(0 0 18px #22e3d44d); }
 .timer.run .tt { animation: tick 1s ease-in-out infinite; }
+.timer.done .tt { animation: none; filter: drop-shadow(0 0 22px #22e3d4a6); }
+.timer .bar { max-width: 260px; margin-left: auto; margin-right: auto; }
 @keyframes tick { 50% { opacity: .68 } }
 .timer .tl { font-family: var(--mono); font-size: 10.5px; color: var(--txt-3); margin-top: 7px;
   font-weight: 650; letter-spacing: .12em; text-transform: uppercase; }

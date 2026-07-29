@@ -49,7 +49,6 @@ const stLabel = v => ST_LABEL[v] || v;
 
 let VIEW = 'today';
 let WEEK_FILTER = 'all';
-let TIMER = null;
 
 /* ══════════════════ SHELL ══════════════════ */
 function buildNav() {
@@ -216,13 +215,22 @@ function rToday() {
 
   /* таймер */
   h += `<div class="card">
-    <div class="card-t"><h3>Таймер</h3><span class="tiny dim">Запусти блок и не трогай телефон</span></div>
-    <div class="timer"><div class="tt" id="tDisp">00:00</div><div class="tl" id="tLbl">выбери блок</div></div>
-    <div class="row wrap mt" style="justify-content:center">
-      ${blocks.map(b => `<button class="btn sm" data-timer="${(b.id === 'lab' && sess) ? 35 : b.min}" data-tname="${esc(b.name)}">${b.name} · ${(b.id === 'lab' && sess) ? 35 : b.min}м</button>`).join('')}
+    <div class="card-t"><h3>TIMER</h3><span class="tiny dim">Досидел блок до конца — галочка встанет сама</span></div>
+    <div class="timer">
+      <div class="tt" id="tDisp">00:00</div>
+      <div class="tl" id="tLbl">выбери блок</div>
+      <div class="bar mt" style="height:4px"><i id="tBar" style="width:0%"></i></div>
     </div>
-    <div class="row mt" style="justify-content:center">
-      <button class="btn sm ghost" id="tStop">STOP</button>
+    <div class="row wrap mt" style="justify-content:center">
+      ${blocks.map(b => {
+        const mins = (b.id === 'lab' && sess) ? 35 : b.min;
+        const on = (Store.d.days[today] || {})[b.id];
+        return `<button class="btn sm${T.block === b.id ? ' primary' : ''}" data-timer="${mins}" data-tblock="${b.id}" data-tname="${esc(b.name)}">${esc(b.name)} · ${mins}м${on ? ' ✓' : ''}</button>`;
+      }).join('')}
+    </div>
+    <div class="row mt" style="justify-content:center;gap:8px">
+      <button class="btn sm" id="tPause" disabled>PAUSE</button>
+      <button class="btn sm ghost" id="tReset" disabled>RESET</button>
     </div>
   </div>`;
 
@@ -264,8 +272,11 @@ function rToday() {
     Sync.schedule();
     rToday(); renderAll();
   });
-  $$('[data-timer]').forEach(b => b.onclick = () => startTimer(+b.dataset.timer, b.dataset.tname));
-  $('#tStop').onclick = stopTimer;
+  $$('[data-timer]').forEach(b => b.onclick = () =>
+    timerStart(b.dataset.tblock, +b.dataset.timer, b.dataset.tname));
+  $('#tPause').onclick = () => tRunning() ? timerPause() : timerResume();
+  $('#tReset').onclick = timerReset;
+  tPaint();
   bindWeekCard($('#v-today'));
 }
 
@@ -289,33 +300,113 @@ function plural(n, a, b, c) {
   return c;
 }
 
-/* таймер */
-function startTimer(min, name) {
-  stopTimer();
-  let left = min * 60;
-  $('#tLbl').textContent = name;
-  const box = $('#v-today .timer'); if (box) box.classList.add('run');
-  const tick = () => {
-    const m = String(Math.floor(left / 60)).padStart(2, '0');
-    const s = String(left % 60).padStart(2, '0');
-    const el = $('#tDisp'); if (!el) { stopTimer(); return; }
-    el.textContent = m + ':' + s;
-    if (left <= 0) {
-      stopTimer();
-      el.textContent = '00:00';
-      $('#tLbl').textContent = 'БЛОК ЗАВЕРШЁН';
-      toast(name + ' — блок закончен');
-      try { navigator.vibrate && navigator.vibrate([200, 90, 200]); } catch (e) {}
-      return;
-    }
-    left--;
-  };
-  tick();
-  TIMER = setInterval(tick, 1000);
+/* ══════════════════ ТАЙМЕР ══════════════════
+   Отсчёт идёт от метки окончания по стенным часам, а не убавлением
+   счётчика: браузер душит setInterval в фоне до одного раза в минуту,
+   и старый таймер врал, стоило заблокировать телефон. Интервал теперь
+   нужен только чтобы перерисовать цифры — сам отсчёт от него не зависит.
+
+   Состояние лежит в отдельном ключе localStorage, а не в синхронизируемом
+   payload: запущенный таймер — дело конкретного устройства, тащить его
+   на второй телефон бессмысленно. */
+const TKEY = 'soc365.timer';
+let TIMER = null;
+let T = { block: null, name: '', total: 0, endsAt: null, left: null, done: false };
+
+function tSave() { try { localStorage.setItem(TKEY, JSON.stringify(T)); } catch (e) {} }
+function tLoad() {
+  try { const raw = localStorage.getItem(TKEY); if (raw) T = Object.assign(T, JSON.parse(raw)); }
+  catch (e) {}
 }
-function stopTimer() {
+function tLeft() {
+  if (T.left != null) return T.left;                       // пауза
+  if (!T.endsAt) return T.total;
+  return Math.max(0, Math.round((T.endsAt - Date.now()) / 1000));
+}
+function tRunning() { return !!T.endsAt && T.left == null; }
+
+function timerStart(block, min, name) {
+  T = { block, name, total: min * 60, endsAt: Date.now() + min * 60000, left: null, done: false };
+  tSave(); tLoop(); tPaint(); buzz(10);
+}
+function timerPause() {
+  if (!tRunning()) return;
+  T.left = tLeft(); T.endsAt = null;
+  tSave(); tLoop(); tPaint();
+}
+function timerResume() {
+  if (T.left == null) return;
+  T.endsAt = Date.now() + T.left * 1000; T.left = null;
+  tSave(); tLoop(); tPaint();
+}
+function timerReset() {
+  T = { block: null, name: '', total: 0, endsAt: null, left: null, done: false };
+  tSave(); tLoop(); tPaint();
+  document.title = 'SOC Roadmap 365';
+  if (VIEW === 'today') rToday();
+}
+
+/** Блок досижен до конца — галочка в чеклисте встаёт сама. */
+function timerFinish(silent) {
+  const block = T.block, name = T.name;
+  T.endsAt = null; T.left = 0; T.done = true;
+  tSave(); tLoop();
+  document.title = 'SOC Roadmap 365';
+
+  if (block) {
+    const today = iso(new Date());
+    if (!Store.day(today)[block]) {
+      Store.toggleBlock(today, block);
+      Sync.schedule();
+      toast(name + ' — блок закрыт, галочка стоит');
+    } else {
+      toast(name + ' — время вышло');
+    }
+  }
+  if (!silent) { try { navigator.vibrate && navigator.vibrate([200, 90, 200]); } catch (e) {} }
+  renderAll();
+}
+
+function tLoop() {
   if (TIMER) { clearInterval(TIMER); TIMER = null; }
-  const box = $('#v-today .timer'); if (box) box.classList.remove('run');
+  if (tRunning()) TIMER = setInterval(tPaint, 500);
+}
+
+function tPaint() {
+  const disp = $('#tDisp');
+  if (!disp) { if (TIMER) { clearInterval(TIMER); TIMER = null; } return; }
+
+  const left = tLeft();
+  if (tRunning() && left <= 0) { timerFinish(); return; }
+
+  disp.textContent = String(Math.floor(left / 60)).padStart(2, '0') + ':' +
+                     String(left % 60).padStart(2, '0');
+
+  const lbl = $('#tLbl');
+  if (lbl) lbl.textContent = T.done ? 'БЛОК ЗАКРЫТ'
+    : !T.block ? 'выбери блок'
+    : tRunning() ? T.name : T.name + ' · пауза';
+
+  const box = $('#v-today .timer');
+  if (box) { box.classList.toggle('run', tRunning()); box.classList.toggle('done', !!T.done); }
+
+  const bar = $('#tBar');
+  if (bar) bar.style.width = T.total ? Math.round((1 - left / T.total) * 100) + '%' : '0%';
+
+  const pb = $('#tPause');
+  if (pb) { pb.textContent = tRunning() ? 'PAUSE' : 'RESUME'; pb.disabled = !T.block || T.done; }
+  const rb = $('#tReset');
+  if (rb) rb.disabled = !T.block;
+
+  // на десктопе остаток видно прямо во вкладке
+  if (tRunning()) document.title = disp.textContent + ' · ' + T.name;
+}
+
+/** Таймер мог доработать, пока вкладка была закрыта или телефон заблокирован. */
+function tRestore() {
+  tLoad();
+  if (T.endsAt && T.left == null && Date.now() >= T.endsAt) timerFinish(true);
+  else tLoop();
 }
 
 /* ─────────── ГОД ─────────── */
@@ -953,7 +1044,6 @@ function rRank() {
             <td class="mono">${r.weeks_closed}</td>
             <td class="mono">${r.streak}</td></tr>`).join('')}
           </tbody></table></div>
-          <p class="tiny dim mt" style="margin-bottom:0">Сюда уходят только цифры. Заметки, блокеры и отклики лежат в другой таблице и не видны никому.</p>
         </div>`;
       }
       box.innerHTML = h;
@@ -980,6 +1070,7 @@ async function openApp(note) {
   $('#picker').style.display = 'none';
   $('#app').classList.add('on');
   await Sync.init();
+  tRestore();
   renderAll();
   decodeHeadings($('#v-' + VIEW));
   if (note) toast(note);
