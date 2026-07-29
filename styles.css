@@ -288,7 +288,16 @@ code, pre, .mono { font-family: var(--mono); }
    в самом низу страницы. Кадр у анимации один (from), поэтому backwards
    выглядит ровно так же. Правило общее: у from-анимаций — backwards. */
 #app.on { display: block; animation: appIn .55s var(--ease) backwards; }
-@keyframes appIn { from { opacity: 0; transform: scale(.995); } }
+/* В кадре НЕТ и не должно быть transform, scale, filter и perspective.
+   #app — предок таббара, а любое из этих свойств со значением, отличным
+   от none, делает элемент containing block для position: fixed. Смены
+   fill-mode на backwards оказалось недостаточно: анимация может остаться
+   в состоянии running с нулевым временем (startTime === null), и тогда
+   backwards держит кадр from бессрочно — transform живёт, таббар уезжает.
+   Прозрачность такого эффекта не даёт вовсе, поэтому появление
+   анимируется только ею. Разница со scale(.995) на глаз неразличима:
+   это полпроцента. Проверяется в CI (.github/workflows/security.yml). */
+@keyframes appIn { from { opacity: 0; } }
 
 .topbar {
   position: sticky; top: 0; z-index: 60; display: flex; align-items: center; gap: 10px;
