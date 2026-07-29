@@ -6,8 +6,10 @@
 import security from 'eslint-plugin-security';
 
 export default [
+  /* Файлы страницы — обычные скрипты, не модули: сборки у проекта нет,
+     всё грузится тегами <script> и делит одну глобальную область. */
   {
-    files: ['*.js', 'tools/**/*.mjs'],
+    files: ['*.js'],
     languageOptions: {
       ecmaVersion: 2022,
       sourceType: 'script',
@@ -41,6 +43,30 @@ export default [
          данных мы закрыли own() в security.js. Оставляем предупреждением,
          чтобы новые случаи было видно в логе, но сборку не роняем. */
       'security/detect-object-injection': 'warn',
+      'security/detect-unsafe-regex': 'warn'
+    }
+  },
+
+  /* Скрипты в tools/ — это ES-модули под node, у них свои глобалы. */
+  {
+    files: ['tools/**/*.mjs'],
+    languageOptions: {
+      ecmaVersion: 2022,
+      sourceType: 'module',
+      globals: {
+        process: 'readonly', console: 'readonly', fetch: 'readonly',
+        Buffer: 'readonly', URL: 'readonly'
+      }
+    },
+    plugins: { security },
+    rules: {
+      ...security.configs.recommended.rules,
+      'security/detect-eval-with-expression': 'error',
+      'security/detect-child-process': 'error',
+      'no-eval': 'error',
+      'no-new-func': 'error',
+      'security/detect-object-injection': 'warn',
+      'security/detect-non-literal-fs-filename': 'off',
       'security/detect-unsafe-regex': 'warn'
     }
   }
