@@ -168,7 +168,7 @@ Editor, меняй настройки Supabase Auth, проверяй резул
 | Auth → Sign In / Providers | Email включён, **Confirm email включён**, минимальная длина пароля 6 |
 | Аккаунт владельца | зарегистрирован, трек `cyber` активен, строка в `leaderboard` есть |
 | GitHub Pages | деплой из `main` / root, сборка 1–2 минуты |
-| Версия ассетов | сейчас `?v=18` в `index.html` и `manifest.webmanifest` |
+| Версия ассетов | сейчас `?v=19` в `index.html` и `manifest.webmanifest` |
 | Внешняя зависимость | `supabase-js` запинен на `2.111.0` и закрыт `sha384`; обновлять только через `node tools/pin-dependency.mjs` |
 | CI | `.github/workflows/security.yml`, права `contents: read`, 6 проверок + сверка SRI с CDN. `vocab.js` внесён в список файлов для ESLint. Деплой Pages идёт **из ветки**, не из Actions |
 | Политика уязвимостей | `SECURITY.md`, два языка. Приватные сообщения через вкладку Security нужно включить в настройках репозитория |

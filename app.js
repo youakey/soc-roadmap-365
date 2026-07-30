@@ -487,6 +487,12 @@ function drillAct(act) {
   if (!Drill.on) return;
 
   if (act === 'exit') { Drill.stop(); rAnki(); renderAll(); return; }
+
+  /* На экране итога живёт только выход. Без этой проверки пробел
+     и стрелки продолжали крутить счётчики за концом прохода:
+     pos уходил за total, ok рос на карточках, которых уже нет. */
+  if (Drill.finished || !Drill.card()) return;
+
   if (act === 'flip') { Drill.flip(); rDrill(); buzz(8); return; }
 
   if (act === 'del') {
