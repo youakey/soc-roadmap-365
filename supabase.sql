@@ -381,16 +381,22 @@ create trigger progress_guard_biu
 -- То есть любой вошедший мог опубликовать трек, и он появился бы на
 -- экране выбора у всех остальных. Публикация — решение владельца
 -- проекта, а не пользователя: она делается из SQL Editor.
-drop policy if exists "roadmaps insert own" on public.roadmaps;
+-- Порядок важен: СНАЧАЛА создаём новые политики, ПОТОМ убираем старые.
+-- Если делать наоборот и запрос порвётся между drop и create, таблица
+-- останется без политики вовсе — RLS по умолчанию запрещает всё, и экран
+-- выбора трека сломается. При таком порядке в худшем случае недолго
+-- действуют обе, а это лишь мягче, но не опаснее.
 create policy "roadmaps insert own private" on public.roadmaps
   for insert to authenticated
   with check (owner_id = auth.uid() and is_public = false);
 
-drop policy if exists "roadmaps update own" on public.roadmaps;
 create policy "roadmaps update own private" on public.roadmaps
   for update to authenticated
   using (owner_id = auth.uid())
   with check (owner_id = auth.uid() and is_public = false);
+
+drop policy if exists "roadmaps insert own" on public.roadmaps;
+drop policy if exists "roadmaps update own" on public.roadmaps;
 
 
 -- ─────────────── 10. ПРОВЕРКА ───────────────
