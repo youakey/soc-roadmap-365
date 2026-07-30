@@ -336,6 +336,10 @@ function rToday() {
 let ANKI_DECK = 'en';
 let ANKI_FIELDS = 2;
 let ANKI_REEXPORT = false;
+let ANKI_LIMIT = 25;          // размер прохода: 10 / 25 / вся колода
+let BROWSE_FILTER = 'all';
+let BROWSE_Q = '';
+const BROWSE_CAP = 120;       // строк за раз; ниже подписано, сколько всего
 
 const DECK_LABEL = { en: 'EN', pl: 'PL' };
 /** Курсор на экране пальцем возвращать в поле нельзя: всплывает
@@ -350,7 +354,170 @@ function ankiSource(wk) {
   return w ? 'W' + w.w + ' · ' + w.topic : '';
 }
 
+/* ── тренажёр ──────────────────────────────────────────────
+   Оформлен как окно терминала: моноширинный шрифт, приглашение
+   в шапке, ответ выводится строками, прогресс — ASCII-метром.
+   Блеска нет намеренно: ни белых бликов, ни drop-shadow. Ответ
+   отмечается цветом рамки и текста, потому что слово разглядывают
+   подолгу, а вспышка на каждой карточке бьёт по глазам (§3.8).
+
+   Переворот — настоящий rotateY с perspective, и живёт он ТОЛЬКО
+   внутри .dstage с overflow: hidden. Причина в §3.5: трансформ,
+   выходящий за родителя, расширяет документ, Safari ужимает
+   страницу, и position: fixed уезжает вместе с layout-viewport.
+   .dstage не предок таббара, поэтому containing block ему не грозит,
+   но клипование обязательно. */
+
+/** ASCII-метр вместо кольца: в стиле командной строки и, в отличие
+ *  от светящегося кольца, не мигает на каждой карточке. */
+function dMeter(done, total) {
+  const cells = 22;
+  const fill = total ? Math.round((done / total) * cells) : 0;
+  return '[' + '█'.repeat(fill) + '░'.repeat(Math.max(0, cells - fill)) + ']';
+}
+function dTime(s) {
+  const m = Math.floor(s / 60);
+  return (m ? m + 'm ' : '') + (s % 60) + 's';
+}
+
+/** Шапка окна. Приглашение настоящее по смыслу: показывает колоду
+ *  и размер прохода, то есть работает подписью, а не украшением. */
+function dHead(right) {
+  return `<div class="term-bar">
+    <i class="term-led"></i>
+    <span class="term-title mono">soc365@drill:~/${esc(ANKI_DECK)}$</span>
+    <span class="spacer"></span>
+    <span class="tiny dim mono">${right || ''}</span>
+  </div>`;
+}
+
+function rDrill() {
+  const box = $('#v-anki');
+  const total = Drill.total, done = Drill.done;
+
+  let h = `<div class="section-h"><h2>DRILL</h2><span class="rule"></span>
+    <span class="pill accent">${DECK_LABEL[Drill.deck] || esc(Drill.deck)}</span></div>`;
+
+  /* ── проход закончен ── */
+  if (Drill.finished || !Drill.card()) {
+    h += `<div class="term">
+      ${dHead('exit 0')}
+      <div class="term-body">
+        <div class="tline mono dim">$ drill --deck=${esc(Drill.deck)}</div>
+        <div class="tline mono">&gt; cards&nbsp;&nbsp;${total}</div>
+        <div class="tline mono ok">&gt; ok&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;${Drill.ok}</div>
+        <div class="tline mono ag">&gt; again&nbsp;&nbsp;${Drill.again}</div>
+        <div class="tline mono">&gt; time&nbsp;&nbsp;&nbsp;${dTime(Drill.seconds())}</div>
+        <div class="tline mono dim">${dMeter(1, 1)} ${total}/${total}</div>
+        <div class="tline mono acc">[ session closed ]</div>
+        <div class="row wrap mt" style="gap:8px">
+          <button class="btn sm primary" id="dAgainAll">RESTART</button>
+          <button class="btn sm ghost" id="dExit">EXIT</button>
+        </div>
+      </div>
+    </div>`;
+    box.innerHTML = h;
+    $('#dAgainAll').onclick = () => { Drill.start(Drill.deck, ANKI_LIMIT); rAnki(); };
+    $('#dExit').onclick = () => { Drill.stop(); rAnki(); renderAll(); };
+    return;
+  }
+
+  const c = Drill.card();
+  const w = c.week ? WEEKS[c.week - 1] : null;
+  const flipped = Drill.flipped;
+
+  h += `<div class="term">
+    ${dHead('q ' + Drill.left)}
+    <div class="term-body">
+      <div class="dmeter mono">
+        <span class="dbar">${dMeter(done, total)}</span>
+        <span class="dnum">${done}/${total}</span>
+        <span class="ok">ok ${Drill.ok}</span>
+        <span class="ag">again ${Drill.again}</span>
+      </div>
+
+      <div class="dstage">
+        <div class="dcard${flipped ? ' flip' : ''}" id="dCard" role="button" tabindex="0"
+             aria-label="Перевернуть карточку">
+          <div class="dface dfront">
+            <div class="dtag mono">FRONT${c.week ? ' · W' + c.week : ''}</div>
+            <div class="dword mono" id="dWord">${esc(c.word)}</div>
+            <div class="dprompt mono dim">_</div>
+          </div>
+          <div class="dface dback">
+            <div class="dtag mono">BACK</div>
+            <div class="dmean">${esc(c.meaning)}</div>
+            ${c.example ? `<div class="dex mono">&gt; ${esc(c.example)}</div>` : ''}
+            ${c.source ? `<div class="dsrc mono dim">// ${esc(c.source)}</div>` : ''}
+          </div>
+        </div>
+      </div>
+
+      <div class="row wrap drow" style="gap:8px">
+        ${flipped
+          ? `<button class="btn sm dag" data-dact="again">AGAIN</button>
+             <button class="btn sm primary dok" data-dact="know">OK</button>`
+          : `<button class="btn sm primary" data-dact="flip">SHOW</button>`}
+        <span class="spacer"></span>
+        <button class="btn sm danger" data-dact="del">DEL</button>
+        <button class="btn sm ghost" data-dact="exit">EXIT</button>
+      </div>
+      <div class="dkeys tiny dim mono">SPACE flip · &larr; again · &rarr; ok · D del · ESC exit</div>
+    </div>
+  </div>`;
+
+  box.innerHTML = h;
+
+  /* Слово проявляется расшифровкой глифами — тот же эффект, что
+     у заголовков, и он же самый «терминальный» из всех имеющихся.
+     decodeText сам уважает prefers-reduced-motion. */
+  if (!flipped) decodeText($('#dWord'));
+
+  const card = $('#dCard');
+  card.onclick = () => drillAct('flip');
+  card.onkeydown = e => {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); drillAct('flip'); }
+  };
+  $$('[data-dact]').forEach(b => b.onclick = e => { e.stopPropagation(); drillAct(b.dataset.dact); });
+}
+
+/** Одна точка входа для мыши, тача и клавиатуры — иначе три пути
+ *  разойдутся, как разошлись два экранирования до security.js. */
+function drillAct(act) {
+  if (!Drill.on) return;
+
+  if (act === 'exit') { Drill.stop(); rAnki(); renderAll(); return; }
+  if (act === 'flip') { Drill.flip(); rDrill(); buzz(8); return; }
+
+  if (act === 'del') {
+    const c = Drill.card();
+    if (!c || !confirm('Удалить «' + c.word + '» из словаря?\n\nОтменить будет нельзя.')) return;
+    Drill.drop(c.lid);
+    Vocab.remove(c.lid).then(() => { rDrill(); renderAll(); });
+    rDrill();
+    return;
+  }
+
+  if (act !== 'know' && act !== 'again') return;
+  if (!Drill.flipped) return;          // отвечать не глядя нельзя
+
+  /* Карточка уезжает в сторону ответа: вправо зелёным, влево янтарным.
+     Уход происходит внутри .dstage с overflow: hidden, поэтому
+     документ не расширяется (§3.5). При reduced-motion кадр пустой
+     и всё сводится к мгновенной перерисовке. */
+  const el = $('#dCard');
+  const go = () => {
+    if (act === 'know') Drill.know(); else Drill.later();
+    rDrill();
+  };
+  buzz(act === 'know' ? 12 : 18);
+  if (REDUCED || !el) { go(); return; }
+  el.classList.add(act === 'know' ? 'out-ok' : 'out-ag');
+  setTimeout(go, 240);
+}
+
 function rAnki() {
+  if (Drill.on) { rDrill(); return; }
   const cw = currentWeek();
   const raws = Vocab.list(ANKI_DECK, 'raw');
   const readyN = Vocab.count(ANKI_DECK, 'ready');
@@ -373,6 +540,31 @@ function rAnki() {
       <span class="tiny dim mono">${DECK_LABEL[ANKI_DECK]} · raw ${raws.length} · ready ${readyN} · exported ${expN}</span>
     </div>
   </div>`;
+
+  /* ── тренажёр: панель запуска ── */
+  const pool = Drill.pool(ANKI_DECK).length;
+  h += `<div class="section-h"><h2>DRILL</h2><span class="rule"></span>
+    <span class="pill${pool ? ' ok' : ''}">${pool}</span></div>`;
+
+  if (!pool) {
+    h += `<div class="empty"><div class="ic">${ICONS.radar}</div>
+      Повторять пока нечего: карточка попадает в проход, когда у неё есть значение.</div>`;
+  } else {
+    h += `<div class="term">
+      ${dHead('ready ' + pool)}
+      <div class="term-body">
+        <div class="tline mono dim">$ drill --deck=${esc(ANKI_DECK)} --count=${ANKI_LIMIT || pool}</div>
+        <div class="tline mono">&gt; в колоде ${DECK_LABEL[ANKI_DECK]} готово карточек: ${pool}</div>
+        <div class="row wrap mt" style="gap:8px">
+          ${[10, 25, 0].map(n =>
+            `<button class="btn sm${n === ANKI_LIMIT ? ' primary' : ''}" data-dlimit="${n}">${n || 'ВСЯ КОЛОДА'}</button>`).join('')}
+        </div>
+        <div class="row wrap mt" style="gap:8px">
+          <button class="btn primary" id="dStart">START ${Math.min(ANKI_LIMIT || pool, pool)}</button>
+        </div>
+      </div>
+    </div>`;
+  }
 
   /* ── оформление ── */
   h += `<div class="section-h"><h2>SHAPE</h2><span class="rule"></span>
@@ -438,6 +630,56 @@ function rAnki() {
     </div>
   </div>`;
 
+  /* ── список всех карточек ──
+     Единственное место, где карточку можно удалить в любом состоянии,
+     включая уже выгруженную. Правка значения тоже здесь: опечатку
+     находят обычно после экспорта, а не до. */
+  const all = Vocab.rows.filter(r => r.deck === ANKI_DECK);
+  const q = BROWSE_Q.trim().toLowerCase();
+  const found = all.filter(r =>
+    (BROWSE_FILTER === 'all' || r.status === BROWSE_FILTER) &&
+    (!q || r.word.toLowerCase().indexOf(q) !== -1 || r.meaning.toLowerCase().indexOf(q) !== -1));
+  const shown = found.slice(0, BROWSE_CAP);
+
+  h += `<div class="section-h"><h2>BROWSE</h2><span class="rule"></span>
+    <span class="pill">${found.length}</span></div>`;
+
+  h += `<div class="card">
+    <label class="fld" style="margin:0 0 10px"><span>FIND</span>
+      <input type="text" id="bQ" value="${esc(BROWSE_Q)}" autocomplete="off" spellcheck="false"
+             placeholder="слово или значение"></label>
+    <div class="row wrap" style="gap:8px">
+      ${[['all','ALL'],['raw','RAW'],['ready','READY'],['exported','EXPORTED']].map(f =>
+        `<button class="btn sm${f[0] === BROWSE_FILTER ? ' primary' : ''}" data-bf="${f[0]}">${f[1]} ${
+          f[0] === 'all' ? all.length : all.filter(r => r.status === f[0]).length}</button>`).join('')}
+    </div>`;
+
+  if (!shown.length) {
+    h += `<div class="empty" style="padding:26px 12px"><div class="ic">${ICONS.file}</div>Ничего не нашлось.</div>`;
+  } else {
+    h += `<div class="brows mt">${shown.map(r => `
+      <div class="brow" data-brow="${esc(r.lid)}">
+        <div class="bhead">
+          <b class="mono">${esc(r.word)}</b>
+          <span class="row" style="gap:6px">
+            ${r.week ? `<span class="pill">W${r.week}</span>` : ''}
+            <span class="pill ${r.status === 'exported' ? 'ok' : r.status === 'ready' ? 'accent' : 'warn'}">${r.status.toUpperCase()}</span>
+          </span>
+        </div>
+        <input type="text" class="bmean" maxlength="500" value="${esc(r.meaning)}"
+               data-vf="meaning" data-vlid="${esc(r.lid)}" placeholder="значение">
+        <div class="row wrap bact" style="gap:6px">
+          ${r.status === 'ready' || r.status === 'exported'
+            ? `<button class="btn sm ghost" data-bunready="${esc(r.lid)}">TO RAW</button>` : ''}
+          <button class="btn sm danger" data-vdel="${esc(r.lid)}">DEL</button>
+        </div>
+      </div>`).join('')}</div>`;
+    if (found.length > shown.length) {
+      h += `<div class="tiny dim mono mt">показано ${shown.length} из ${found.length}</div>`;
+    }
+  }
+  h += `</div>`;
+
   $('#v-anki').innerHTML = h;
 
   /* ── события ── */
@@ -468,6 +710,15 @@ function rAnki() {
   $$('[data-vfields]').forEach(b => b.onclick = () => { ANKI_FIELDS = +b.dataset.vfields; rAnki(); });
   $('#vReexp').onclick = () => { ANKI_REEXPORT = !ANKI_REEXPORT; rAnki(); };
 
+  $$('[data-dlimit]').forEach(b => b.onclick = () => { ANKI_LIMIT = +b.dataset.dlimit; rAnki(); });
+  const st = $('#dStart');
+  if (st) st.onclick = () => {
+    if (!Drill.start(ANKI_DECK, ANKI_LIMIT)) { toast('Повторять нечего'); return; }
+    buzz(14);
+    window.scrollTo({ top: 0, behavior: 'instant' });
+    rDrill();
+  };
+
   $$('[data-vf]').forEach(el => el.onchange = () => {
     const patch = {};
     patch[el.dataset.vf] = el.value;
@@ -479,11 +730,36 @@ function rAnki() {
     if (res && res.need === 'meaning') { toast('Без значения карточка пустая'); return; }
     buzz(12); rAnki(); renderAll();
   });
+  $$('[data-bunready]').forEach(b => b.onclick = () => {
+    Vocab.unready(b.dataset.bunready);
+    /* Карточка вернулась в сырые — из текущего прохода её убираем,
+       отвечать по ней уже нечем. */
+    Drill.drop(b.dataset.bunready);
+    toast('Вернул в raw'); rAnki(); renderAll();
+  });
   $$('[data-vdel]').forEach(b => b.onclick = () => {
     const row = Vocab.rows.find(x => x.lid === b.dataset.vdel);
-    if (!row || !confirm('Удалить «' + row.word + '»?')) return;
+    if (!row || !confirm('Удалить «' + row.word + '»?\n\nОтменить будет нельзя.')) return;
+    Drill.drop(b.dataset.vdel);
     Vocab.remove(b.dataset.vdel).then(() => { rAnki(); renderAll(); });
   });
+
+  /* Поиск фильтрует на ходу, но перерисовывать раздел на каждую букву
+     нельзя: поле потеряет фокус. Перерисовываем только список. */
+  const bq = $('#bQ');
+  if (bq) {
+    bq.oninput = () => {
+      BROWSE_Q = bq.value;
+      clearTimeout(bq._t);
+      bq._t = setTimeout(() => {
+        const pos = bq.selectionStart;
+        rAnki();
+        const n = $('#bQ');
+        if (n) { n.focus(); try { n.setSelectionRange(pos, pos); } catch (e) { /* не критично */ } }
+      }, 260);
+    };
+  }
+  $$('[data-bf]').forEach(b => b.onclick = () => { BROWSE_FILTER = b.dataset.bf; rAnki(); });
 
   $$('[data-vexp]').forEach(b => b.onclick = () => {
     const n = Vocab.export(b.dataset.vexp, ANKI_FIELDS, ANKI_REEXPORT);
@@ -1420,7 +1696,32 @@ Auth.onleave = () => {
   $('#gate').style.display = 'grid';
   Store.reset();                  // локальный кеш чужому не достаётся
   Vocab.wipe();                   // словарь тем более: это карта незнания
+  Drill.stop();                   // и незакрытый проход по чужим словам
 };
+
+/* Клавиатура тренажёра. Раскладка как в настольной Anki: пробел
+   показывает ответ, дальше оценка. Слушатель один и глобальный,
+   но срабатывает только когда проход идёт и вкладка открыта, —
+   иначе он перехватит пробел у поля захвата и у чеклиста. */
+window.addEventListener('keydown', e => {
+  if (!Drill.on || VIEW !== 'anki') return;
+  if (!$('#app').classList.contains('on')) return;
+  const t = e.target;
+  if (t && /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName)) return;
+  if (e.metaKey || e.ctrlKey || e.altKey) return;
+
+  const k = e.key;
+  let act = null;
+  if (k === ' ' || k === 'Enter') act = Drill.flipped ? 'know' : 'flip';
+  else if (k === 'ArrowRight' || k === '2') act = 'know';
+  else if (k === 'ArrowLeft'  || k === '1') act = 'again';
+  else if (k === 'd' || k === 'D' || k === 'в' || k === 'В') act = 'del';
+  else if (k === 'Escape') act = 'exit';
+  if (!act) return;
+
+  e.preventDefault();
+  drillAct(act);
+});
 
 Sync.onchange = () => { if ($('#app').classList.contains('on') && VIEW === 'more') rMore(); };
 window.addEventListener('pagehide', () => {

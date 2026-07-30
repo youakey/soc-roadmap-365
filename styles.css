@@ -1053,6 +1053,122 @@ html { scrollbar-color: var(--line-hot) transparent; scrollbar-width: thin; }
   main::after  { top: 10px; right: 14px; border-top: 1px solid; border-right: 1px solid; }
 }
 
+/* ══════════════════════════════════════════════════════════════
+   ANKI: ОКНО ТЕРМИНАЛА И ТРЕНАЖЁР
+
+   Блеска здесь нет намеренно. Ни белых бликов, ни drop-shadow,
+   ни вспышек на ответе: слово разглядывают подолгу, и по правилу
+   §3.8 эффект не должен быть заметнее содержимого. Ответ отмечается
+   цветом рамки и текста — этого хватает, чтобы понять, что нажалось.
+
+   Переворот — настоящий rotateY с perspective, и он заперт внутри
+   .dstage с overflow: hidden. Причина в §3.5: трансформ, выходящий
+   за родителя, расширяет прокручиваемую область, Safari ужимает
+   страницу, и position: fixed уезжает вместе с layout-viewport.
+   Ни perspective, ни transform не попадают на #app, .layout, main
+   и .view — иначе любой из них станет containing block и таббар
+   отклеится (§3.5, §9).
+   ══════════════════════════════════════════════════════════════ */
+.term {
+  border: 1px solid var(--line); border-radius: var(--r);
+  background: var(--surface); overflow: hidden; position: relative;
+}
+.term-bar {
+  display: flex; align-items: center; gap: 9px;
+  padding: 8px 12px; background: var(--surface-2);
+  border-bottom: 1px solid var(--line);
+}
+.term-led {
+  width: 7px; height: 7px; border-radius: 50%; flex: none;
+  background: var(--green); opacity: .8;
+}
+.term-title { font-size: 11.5px; color: var(--txt-3); letter-spacing: .03em; }
+.term-body { padding: 15px 14px 14px; }
+/* Насечка сканлайнами: очень низкая альфа, статичная. Анимированная
+   заставляла бы перерисовывать весь блок, а целевое железо — A12 (§3.10). */
+.term::after {
+  content: ''; position: absolute; inset: 0; pointer-events: none;
+  background: repeating-linear-gradient(to bottom,
+    #ffffff05 0 1px, transparent 1px 3px);
+}
+.tline { font-size: 12.5px; line-height: 1.75; color: var(--txt-2); }
+.term .ok  { color: var(--green); }
+.term .ag  { color: var(--amber); }
+.term .acc { color: var(--cyan); }
+
+.dmeter {
+  display: flex; flex-wrap: wrap; gap: 10px; align-items: baseline;
+  font-size: 12px; color: var(--txt-3); margin-bottom: 13px;
+}
+.dbar { color: var(--cyan); letter-spacing: -.5px; }
+.dnum { color: var(--txt); }
+
+/* ── сцена и карточка ── */
+.dstage { perspective: 1200px; overflow: hidden; padding: 6px 2px 10px; }
+.dcard {
+  position: relative; transform-style: preserve-3d;
+  transition: transform .5s var(--ease);
+  min-height: 176px; cursor: pointer; outline: none;
+}
+.dcard.flip { transform: rotateY(180deg); }
+.dcard:focus-visible .dface { border-color: var(--cyan); }
+.dface {
+  display: flex; flex-direction: column; justify-content: center; gap: 9px;
+  min-height: 176px; padding: 20px 18px;
+  border: 1px solid var(--border); border-radius: var(--r);
+  background: var(--bg);
+  backface-visibility: hidden; -webkit-backface-visibility: hidden;
+}
+.dback {
+  position: absolute; inset: 0; transform: rotateY(180deg);
+  border-color: color-mix(in srgb, var(--cyan) 26%, transparent);
+  overflow: auto;
+}
+.dtag { font-size: 10px; letter-spacing: .1em; color: var(--txt-3); }
+.dword {
+  font-size: clamp(26px, 7vw, 40px); font-weight: 700; color: var(--txt);
+  letter-spacing: -.01em; word-break: break-word;
+}
+/* Каретка, а не подпись: в терминале мигающий курсор и есть
+   приглашение к действию. Подсказку про клавиши держим отдельно. */
+.dprompt { font-size: 15px; color: var(--cyan); animation: dCaret 1.05s steps(1) infinite; }
+@keyframes dCaret { 50% { opacity: 0 } }
+
+.dmean { font-size: 16.5px; line-height: 1.5; color: var(--txt); }
+.dex   { font-size: 12.5px; line-height: 1.6; color: var(--txt-2); }
+.dsrc  { font-size: 11px; }
+
+/* Уход карточки в сторону ответа. Внутри .dstage, поэтому документ
+   не расширяется. Кадры трогают только transform и opacity. */
+.dcard.out-ok { animation: dOutOk .24s ease-in forwards; }
+.dcard.out-ag { animation: dOutAg .24s ease-in forwards; }
+@keyframes dOutOk { to { transform: translateX(34%) rotateY(180deg); opacity: 0 } }
+@keyframes dOutAg { to { transform: translateX(-34%) rotateY(180deg); opacity: 0 } }
+.dcard.out-ok .dface { border-color: color-mix(in srgb, var(--green) 55%, transparent); }
+.dcard.out-ag .dface { border-color: color-mix(in srgb, var(--amber) 55%, transparent); }
+
+.drow { margin-top: 4px; }
+.btn.dag { color: var(--amber); border-color: color-mix(in srgb, var(--amber) 38%, transparent); }
+.dkeys { margin-top: 10px; letter-spacing: .04em; }
+/* На пальце клавиш нет, а строка занимает место и врёт. */
+@media (pointer: coarse) { .dkeys { display: none; } }
+
+/* ── список всех карточек ── */
+.brows { display: grid; gap: 8px; }
+.brow {
+  border: 1px solid var(--line); border-radius: var(--r-s);
+  padding: 10px 11px; background: var(--surface-2);
+  display: grid; gap: 8px;
+}
+.bhead { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.bhead b { font-size: 14px; word-break: break-word; }
+.bmean { padding: 6px 9px; font-size: 13px; }
+.bact { justify-content: flex-end; }
+@media (min-width: 720px) {
+  .brow { grid-template-columns: minmax(150px, 210px) 1fr auto; align-items: center; }
+  .bhead { flex-direction: column; align-items: flex-start; gap: 4px; }
+}
+
 /* ══════════ ДОСТУПНОСТЬ / ПРОИЗВОДИТЕЛЬНОСТЬ ══════════ */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important;
@@ -1069,6 +1185,21 @@ html { scrollbar-color: var(--line-hot) transparent; scrollbar-width: thin; }
   .bar > i::after, .btn.primary::after, .topbar::after, .c-cur
     { animation: none !important; }
   .reveal { opacity: 1; transform: none; }
+
+  /* Тренажёр вырождается в смену прозрачности. Перспективу и
+     preserve-3d снимаем целиком: без анимации перевёрнутая карточка
+     осталась бы зеркальной, а обратная сторона — невидимой из-за
+     backface-visibility. Поэтому лицо просто скрывается, а не
+     поворачивается. */
+  .dstage { perspective: none; }
+  .dcard, .dcard.flip { transform: none; transform-style: flat; }
+  .dcard.out-ok, .dcard.out-ag { animation: none !important; }
+  .dface { backface-visibility: visible; -webkit-backface-visibility: visible; }
+  .dback { position: absolute; transform: none; opacity: 0; pointer-events: none; }
+  .dcard.flip .dfront { opacity: 0; }
+  .dcard.flip .dback  { opacity: 1; pointer-events: auto; }
+  .dprompt { animation: none !important; }
+  .term::after { display: none; }
 }
 @media (max-width: 380px) { .env .orb:nth-of-type(3) { display: none; } }
 
