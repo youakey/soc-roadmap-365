@@ -376,7 +376,11 @@ main { max-width: 1060px; margin: 0 auto; padding: 18px 16px calc(var(--tab-h) +
   display: flex; align-items: center; justify-content: center;
   font-family: var(--mono); font-size: 9px; font-weight: 700; font-style: normal;
   line-height: 1; letter-spacing: 0; border-radius: 8px;
-  background: var(--warn); color: #0a0d13;
+  /* Именно --amber. Переменной --warn в проекте нет: класс называется
+     .pill.warn, а цвет — --amber. На var(--warn) фон уходит в прозрачный,
+     и бейдж становится тёмным текстом на тёмном таббаре, то есть исчезает
+     совсем, не сломав ничего заметного. */
+  background: var(--amber); color: #0a0d13;
 }
 /* В сайдбаре пункт — строка, а не иконка: счётчик встаёт в конец строки.
    position: relative у .snav button уже стоит в десктопном блоке. */

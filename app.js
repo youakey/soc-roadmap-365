@@ -222,7 +222,7 @@ function rToday() {
         <div class="body"><b>${b.name}</b><p>${esc(b.desc)}</p></div>
         <div class="min">${m}м</div></div>`;
     }).join('')}</div>
-    ${sess ? `<p class="tiny mt" style="color:var(--warn)">Неделя сессии. Универ приоритетнее — это заложено в план, а не провал.</p>` : ''}
+    ${sess ? `<p class="tiny mt" style="color:var(--amber)">Неделя сессии. Универ приоритетнее — это заложено в план, а не провал.</p>` : ''}
   </div>`;
 
   /* Словарь. Счётчик сырых слов и есть напоминание, что пора сесть
@@ -1162,7 +1162,7 @@ function rMore() {
       <div class="row" style="justify-content:space-between"><b>${esc(c.name)}</b><span class="pill">${esc(c.cost)}</span></div>
       <div class="tiny" style="margin-top:3px">${esc(c.verdict)}</div>
       <div class="tiny dim">+ ${esc(c.pro)}</div><div class="tiny dim">− ${esc(c.con)}</div></div>`).join('')}
-    <p class="tiny mt" style="color:var(--warn)">${esc(BUDGET.note)}</p></div></details>`;
+    <p class="tiny mt" style="color:var(--amber)">${esc(BUDGET.note)}</p></div></details>`;
 
   h += `<div class="section-h"><h2>RULES</h2><span class="rule"></span></div><div class="card">
     ${RULES.map(r => `<div style="padding:9px 0;border-bottom:1px solid var(--border)">
