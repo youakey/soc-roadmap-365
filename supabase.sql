@@ -399,11 +399,133 @@ drop policy if exists "roadmaps insert own" on public.roadmaps;
 drop policy if exists "roadmaps update own" on public.roadmaps;
 
 
--- ─────────────── 10. ПРОВЕРКА ───────────────
+-- ─────────────── 10. СЛОВАРЬ ANKI ───────────────
+-- Раздел ANKI, спека в §10 PROJECT.md. Только create/alter, ни одного
+-- drop table (§3.9). Блок идемпотентный, повторный запуск безопасен.
+--
+-- Почему отдельная таблица, а не progress.payload. Пять слов в день за год
+-- дают больше тысячи записей. payload и так тащит весь прогресс одним jsonb
+-- и упирается в предел 1 МиБ из блока 9.4. Отдельная таблица даёт ещё
+-- сортировку и фильтры на сервере и не раздувает основную запись.
+--
+-- Приватность абсолютная. Слова из технических текстов — это карта того,
+-- чего человек не знает. В public_stats и в leaderboard из этой таблицы
+-- не уходит ничего, даже счётчик (§3.1).
+--
+-- ВНИМАНИЕ ПРИ ВЫПОЛНЕНИИ РУКАМИ: блок содержит create function с телом
+-- в $$ … $$. SQL Editor режет отправку по точкам с запятой и молча рвёт
+-- такое тело, показывая при этом СТАРЫЙ результат в панели (§9). Функцию
+-- и триггер отправлять отдельным запуском, результат сверять с каталогом
+-- (pg_proc, pg_trigger), а не с панелью.
+
+create table if not exists public.vocab (
+  id          bigint generated always as identity primary key,
+  user_id     uuid not null references auth.users(id) on delete cascade,
+  deck        text not null default 'en',
+  word        text not null,
+  meaning     text default '',
+  example     text default '',
+  source      text default '',
+  week        int,
+  status      text not null default 'raw',
+  created_at  timestamptz not null default now(),
+  exported_at timestamptz
+);
+
+alter table public.vocab enable row level security;
+
+-- Только владелец. Ни select, ни update чужого — никак, как у progress.
+drop policy if exists "vocab own" on public.vocab;
+create policy "vocab own" on public.vocab
+  for all to authenticated using (user_id = auth.uid()) with check (user_id = auth.uid());
+
+-- ── 10.1. Пара (колода, слово) — естественный ключ ──
+-- Клиент пишет офлайн: слово ловится во время чтения документации, часто
+-- без сети. Значит id, который выдаёт сервер, на момент захвата неизвестен,
+-- и синхронизация не может опираться на него. Опирается на (user_id, deck,
+-- word) — по этой же паре идёт upsert, поэтому повторная отправка одной
+-- и той же карточки не создаёт дубль, даже если ответ сервера потерялся.
+-- Тот же индекс закрывает требование спеки «дубликат ловится на вводе»
+-- на стороне сервера, а не только в интерфейсе.
+-- Одно слово в двух колодах разрешено: deck входит в ключ.
+create unique index if not exists vocab_user_deck_word_idx
+  on public.vocab (user_id, deck, lower(btrim(word)));
+
+-- Списки читаются пачкой по колоде и состоянию.
+create index if not exists vocab_list_idx
+  on public.vocab (user_id, deck, status, created_at);
+
+-- ── 10.2. Границы значений ──
+-- §8 требовал ограничить длины текстовых полей на уровне БД, а не только
+-- в интерфейсе. Здесь это делается сразу, до первой строки: добавлять
+-- ограничение к живым данным дороже.
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'vocab_sane') then
+    alter table public.vocab add constraint vocab_sane check (
+      deck in ('en','pl')
+      and status in ('raw','ready','exported')
+      and char_length(btrim(word)) between 1 and 120
+      and char_length(coalesce(meaning, '')) <= 500
+      and char_length(coalesce(example, '')) <= 1000
+      and char_length(coalesce(source,  '')) <= 200
+      and (week is null or week between 1 and 1000)
+    );
+  end if;
+end $$;
+
+-- ── 10.3. Страж вставки ──
+-- Два дела. Первое — прибить user_id к auth.uid(), как в progress_guard:
+-- RLS проверяет, чья строка, но клиент всё равно её присылает.
+-- Второе — верхняя граница на число строк. Без неё любой вошедший
+-- получает неограниченный примитив записи в базу: RLS разрешает писать
+-- свои строки, а «свои» можно наделать миллион. Пять слов в день за год —
+-- меньше двух тысяч, так что 20 000 не помешает никому живому.
+create or replace function public.vocab_guard()
+returns trigger
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+begin
+  if auth.uid() is not null then
+    new.user_id := auth.uid();
+  end if;
+
+  new.word    := btrim(coalesce(new.word, ''));
+  new.meaning := coalesce(new.meaning, '');
+  new.example := coalesce(new.example, '');
+  new.source  := coalesce(new.source,  '');
+
+  -- Дата выгрузки не выдумывается клиентом: она либо есть, либо ставится
+  -- сервером в тот момент, когда карточка стала exported.
+  if new.status = 'exported' and new.exported_at is null then
+    new.exported_at := now();
+  end if;
+  if new.status <> 'exported' then
+    new.exported_at := null;
+  end if;
+
+  if tg_op = 'INSERT'
+     and (select count(*) from public.vocab where user_id = new.user_id) >= 20000 then
+    raise exception 'Словарь переполнен: предел 20 000 карточек на аккаунт'
+      using errcode = '54000';
+  end if;
+
+  return new;
+end $$;
+
+drop trigger if exists vocab_guard_biu on public.vocab;
+create trigger vocab_guard_biu
+  before insert or update on public.vocab
+  for each row execute function public.vocab_guard();
+
+
+-- ─────────────── 11. ПРОВЕРКА ───────────────
 select tablename, rowsecurity
 from pg_tables
 where schemaname = 'public'
-  and tablename in ('profiles','roadmaps','enrollments','progress','public_stats')
+  and tablename in ('profiles','roadmaps','enrollments','progress','public_stats','vocab')
 order by tablename;
 
 select tablename, policyname, cmd
@@ -416,16 +538,21 @@ select id, title, total_weeks from public.roadmaps;
 
 -- границы применились?
 select conname from pg_constraint
-where conname in ('public_stats_sane','profiles_nickname_shape','profiles_avatar_known')
+where conname in ('public_stats_sane','profiles_nickname_shape','profiles_avatar_known','vocab_sane')
 order by conname;
 
 select tgname from pg_trigger
-where tgname in ('public_stats_guard_biu','progress_guard_biu')
+where tgname in ('public_stats_guard_biu','progress_guard_biu','vocab_guard_biu')
 order by tgname;
 
 -- у всех функций прибит search_path?
 select p.proname, p.prosecdef, p.proconfig
 from pg_proc p join pg_namespace n on n.oid = p.pronamespace
 where n.nspname = 'public'
-  and p.proname in ('handle_new_user','public_stats_guard','progress_guard')
+  and p.proname in ('handle_new_user','public_stats_guard','progress_guard','vocab_guard')
 order by p.proname;
+
+-- индексы словаря на месте? нужны оба: уникальный ключ и список
+select indexname from pg_indexes
+where schemaname = 'public' and tablename = 'vocab'
+order by indexname;

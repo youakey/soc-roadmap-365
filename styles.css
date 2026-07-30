@@ -337,7 +337,7 @@ main { max-width: 1060px; margin: 0 auto; padding: 18px 16px calc(var(--tab-h) +
 
 .tabbar {
   position: fixed; left: 0; right: 0; bottom: 0; z-index: 70;
-  display: grid; grid-template-columns: repeat(6,1fr);
+  display: grid; grid-template-columns: repeat(7,1fr);
   padding-bottom: env(safe-area-inset-bottom);
   /* Непрозрачный фон вместо размытия: размытие подложки на fixed-элементе —
      главный источник рывков при инерционной прокрутке на iOS. */
@@ -358,6 +358,29 @@ main { max-width: 1060px; margin: 0 auto; padding: 18px 16px calc(var(--tab-h) +
   transform: translateX(-50%); background: var(--cyan); box-shadow: 0 0 10px var(--cyan);
   animation: tabPop .32s var(--spring) backwards; }
 @keyframes tabPop { from { transform: translateX(-50%) scaleX(0) } }
+
+/* Семь пунктов вместо шести: на 360 px CAREER перестаёт влезать
+   в 9.5 px, поэтому на узком экране подписи чуть меньше. */
+@media (max-width: 400px) {
+  .tab { font-size: 8.5px; letter-spacing: .03em; padding-left: 0; padding-right: 0; }
+  .tab svg { width: 19px; height: 19px; }
+}
+
+/* Счётчик сырых слов. Появляется только когда он не ноль: пустой
+   кружок на виду обесценивает сигнал. Живёт внутри .tabbar, а не
+   у его предков, — transform на нём не делает никого containing
+   block для position: fixed (§3.5 PROJECT.md). */
+.nav-badge {
+  position: absolute; top: 4px; left: 50%; margin-left: 5px;
+  min-width: 15px; height: 15px; padding: 0 3px; box-sizing: border-box;
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--mono); font-size: 9px; font-weight: 700; font-style: normal;
+  line-height: 1; letter-spacing: 0; border-radius: 8px;
+  background: var(--warn); color: #0a0d13;
+}
+/* В сайдбаре пункт — строка, а не иконка: счётчик встаёт в конец строки.
+   position: relative у .snav button уже стоит в десктопном блоке. */
+.snav .nav-badge { position: static; margin-left: auto; }
 
 /* ══════════ КАРТОЧКИ + HUD ══════════ */
 .card {

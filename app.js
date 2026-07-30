@@ -28,10 +28,12 @@ const ICONS = {
   radar:  S('<circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4.5"/><path d="M12 12l6-3.5"/><circle cx="12" cy="12" r="1" fill="currentColor" stroke="none"/>'),
   bolt:   S('<path d="M13.5 3L6 13.5h5L10.5 21 18 10.5h-5z"/>'),
   rank:   S('<path d="M5 20.5h4v-7H5zM10 20.5h4V6h-4zM15 20.5h4v-10h-4z"/>'),
-  file:   S('<path d="M14 3.5H7.5A1.5 1.5 0 0 0 6 5v14a1.5 1.5 0 0 0 1.5 1.5h9A1.5 1.5 0 0 0 18 19V7.5z"/><path d="M14 3.5V7.5H18"/><path d="M9 12.5h6M9 16h4"/>')
+  file:   S('<path d="M14 3.5H7.5A1.5 1.5 0 0 0 6 5v14a1.5 1.5 0 0 0 1.5 1.5h9A1.5 1.5 0 0 0 18 19V7.5z"/><path d="M14 3.5V7.5H18"/><path d="M9 12.5h6M9 16h4"/>'),
+  anki:   S('<path d="M7 4.5h9.5A1.5 1.5 0 0 1 18 6v13.5H8.5A1.5 1.5 0 0 1 7 18z"/><path d="M4.5 7.5v11A1.5 1.5 0 0 0 6 20h1"/><path d="M10.5 9h4M10.5 12.5h5"/>')
 };
 const NAV = [
   { id: 'today',  label: 'TODAY'  },
+  { id: 'anki',   label: 'ANKI'   },
   { id: 'year',   label: 'YEAR'   },
   { id: 'weeks',  label: 'WEEKS'  },
   { id: 'career', label: 'CAREER' },
@@ -51,14 +53,21 @@ let VIEW = 'today';
 let WEEK_FILTER = 'all';
 
 /* ══════════════════ SHELL ══════════════════ */
+/** Счётчик на пункте меню. Пока он не нужен — атрибута нет вовсе,
+ *  иначе пустой кружок висит на виду и обесценивает сигнал. */
+function navBadge(id) {
+  if (id !== 'anki') return '';
+  const n = Vocab.rawCount();
+  return n ? `<i class="nav-badge">${n > 99 ? '99+' : n}</i>` : '';
+}
 function buildNav() {
   $('#tabbar').innerHTML = NAV.map(n =>
-    `<button class="tab${n.id === VIEW ? ' on' : ''}" data-go="${n.id}">${own(ICONS, n.id, ICONS.shield)}<span>${n.label}</span></button>`).join('');
+    `<button class="tab${n.id === VIEW ? ' on' : ''}" data-go="${n.id}">${own(ICONS, n.id, ICONS.shield)}${navBadge(n.id)}<span>${n.label}</span></button>`).join('');
   $('#snav').innerHTML = NAV.map(n =>
-    `<button class="${n.id === VIEW ? 'on' : ''}" data-go="${n.id}">${own(ICONS, n.id, ICONS.shield)}<span>${n.label}</span></button>`).join('');
+    `<button class="${n.id === VIEW ? 'on' : ''}" data-go="${n.id}">${own(ICONS, n.id, ICONS.shield)}<span>${n.label}</span>${navBadge(n.id)}</button>`).join('');
   $$('#tabbar [data-go], #snav [data-go]').forEach(b => b.onclick = () => go(b.dataset.go));
 }
-const CRUMB = { today:'today', year:'year', weeks:'weeks', career:'career', rank:'rank', more:'more' };
+const CRUMB = { today:'today', anki:'anki', year:'year', weeks:'weeks', career:'career', rank:'rank', more:'more' };
 function paintCrumbs() {
   const el = $('#crumbs');
   if (!el) return;
@@ -155,7 +164,7 @@ function buzz(ms) { try { !REDUCED && navigator.vibrate && navigator.vibrate(ms 
 /* ══════════════════ RENDER ══════════════════ */
 function renderAll() {
   buildNav();
-  ['today','year','weeks','career','rank','more'].forEach(render);
+  ['today','anki','year','weeks','career','rank','more'].forEach(render);
   const cw = currentWeek();
   $('#topWeek').textContent = isBeforeStart() ? 'до старта' : 'W' + cw;
   paintCrumbs();
@@ -166,7 +175,10 @@ function renderAll() {
      <div class="tiny dim mt">${t.hoursFact} из ${t.hoursPlan} ч · ${t.closed}/52 недель</div>`;
 }
 function render(id) {
-  ({ today: rToday, year: rYear, weeks: rWeeks, career: rCareer, rank: rRank, more: rMore })[id]();
+  const fn = own({ today: rToday, anki: rAnki, year: rYear, weeks: rWeeks,
+                   career: rCareer, rank: rRank, more: rMore }, id, null);
+  if (!fn) return;
+  fn();
   observeReveals($('#v-' + id));
 }
 
@@ -211,6 +223,20 @@ function rToday() {
         <div class="min">${m}м</div></div>`;
     }).join('')}</div>
     ${sess ? `<p class="tiny mt" style="color:var(--warn)">Неделя сессии. Универ приоритетнее — это заложено в план, а не провал.</p>` : ''}
+  </div>`;
+
+  /* Словарь. Счётчик сырых слов и есть напоминание, что пора сесть
+     за оформление, — поэтому он висит здесь, рядом с чеклистом,
+     а не внутри своей вкладки. */
+  const vRaw = Vocab.rawCount(), vReady = Vocab.count(null, 'ready');
+  h += `<div class="card">
+    <div class="card-t">
+      <div><h3>ANKI</h3><div class="tiny dim mono">raw ${vRaw} · ready ${vReady}</div></div>
+      <span class="pill${vRaw ? ' warn' : ' ok'}">${vRaw}</span>
+    </div>
+    <div class="row wrap" style="gap:8px">
+      <button class="btn sm${vRaw ? ' primary' : ''}" data-goto="anki">OPEN</button>
+    </div>
   </div>`;
 
   /* таймер */
@@ -291,6 +317,7 @@ function rToday() {
     Sync.schedule();
     rToday(); renderAll();
   });
+  $$('[data-goto]').forEach(b => b.onclick = () => go(b.dataset.goto));
   $$('[data-timer]').forEach(b => b.onclick = () =>
     timerStart(b.dataset.tblock, +b.dataset.timer, b.dataset.tname));
   $$('[data-tadd]').forEach(b => b.onclick = () => timerAdd(+b.dataset.tadd));
@@ -298,6 +325,172 @@ function rToday() {
   $('#tReset').onclick = timerReset;
   tPaint();
   bindWeekCard($('#v-today'));
+}
+
+/* ─────────── ANKI ─────────── */
+/* Спека — §10 PROJECT.md. Раздел разбит на три карточки ровно по трём
+   действиям, которые спека разводит намеренно: захват идёт во время
+   чтения документации и занимает секунду, оформление — в блоке Cyber
+   English, выгрузка — раз в несколько дней. Смешивать их нельзя:
+   если на вводе спрашивать перевод, ввод перестанет случаться. */
+let ANKI_DECK = 'en';
+let ANKI_FIELDS = 2;
+let ANKI_REEXPORT = false;
+
+const DECK_LABEL = { en: 'EN', pl: 'PL' };
+/** Курсор на экране пальцем возвращать в поле нельзя: всплывает
+ *  клавиатура и закрывает список. Автофокус — только мышь. */
+function isCoarse() {
+  try { return window.matchMedia('(pointer: coarse)').matches; } catch (e) { return false; }
+}
+
+/** Источник подставляется сам: номер недели и то, над чем неделя идёт. */
+function ankiSource(wk) {
+  const w = WEEKS[wk - 1];
+  return w ? 'W' + w.w + ' · ' + w.topic : '';
+}
+
+function rAnki() {
+  const cw = currentWeek();
+  const raws = Vocab.list(ANKI_DECK, 'raw');
+  const readyN = Vocab.count(ANKI_DECK, 'ready');
+  const expN   = Vocab.count(ANKI_DECK, 'exported');
+
+  let h = `<div class="section-h"><h2>CAPTURE</h2><span class="rule"></span>
+    <span class="pill${Vocab.rawCount() ? ' warn' : ''}">RAW ${Vocab.rawCount()}</span></div>`;
+
+  h += `<div class="card">
+    <div class="row wrap" style="gap:8px;margin-bottom:12px">
+      ${DECKS.map(d => `<button class="btn sm${d === ANKI_DECK ? ' primary' : ''}" data-deck="${d}">${DECK_LABEL[d]}</button>`).join('')}
+      <span class="spacer"></span>
+      <span class="tiny dim mono">W${cw}</span>
+    </div>
+    <label class="fld" style="margin:0"><span>WORD</span>
+      <input type="text" id="vIn" autocomplete="off" autocapitalize="off" spellcheck="false"
+             maxlength="120" placeholder="слово → Enter"></label>
+    <div class="row wrap mt" style="gap:8px">
+      <button class="btn sm primary" id="vAdd">ADD</button>
+      <span class="tiny dim mono">${DECK_LABEL[ANKI_DECK]} · raw ${raws.length} · ready ${readyN} · exported ${expN}</span>
+    </div>
+  </div>`;
+
+  /* ── оформление ── */
+  h += `<div class="section-h"><h2>SHAPE</h2><span class="rule"></span>
+    <span class="pill${raws.length ? ' accent' : ''}">${raws.length}</span></div>`;
+
+  if (!raws.length) {
+    h += `<div class="empty"><div class="ic">${ICONS.file}</div>В колоде ${DECK_LABEL[ANKI_DECK]} сырых слов нет.</div>`;
+  } else {
+    raws.forEach(r => {
+      const w = r.week ? WEEKS[r.week - 1] : null;
+      const opts = [];
+      if (w) {
+        opts.push({ v: ankiSource(w.w), t: 'W' + w.w + ' · ' + w.topic });
+        w.tasks.forEach(tk => opts.push({ v: 'W' + w.w + ' · ' + tk, t: tk }));
+      }
+      h += `<div class="card" data-vrow="${esc(r.lid)}">
+        <div class="card-t">
+          <h3 class="mono">${esc(r.word)}</h3>
+          <span class="row" style="gap:6px">
+            <span class="pill">${DECK_LABEL[r.deck] || esc(r.deck)}</span>
+            ${r.week ? `<span class="pill q${w ? w.q : 1}">W${r.week}</span>` : ''}
+          </span>
+        </div>
+        <label class="fld"><span>MEANING</span>
+          <input type="text" maxlength="500" value="${esc(r.meaning)}" data-vf="meaning" data-vlid="${esc(r.lid)}"
+                 placeholder="${r.deck === 'en' ? 'значение, лучше на английском' : 'значение'}"></label>
+        <label class="fld"><span>EXAMPLE</span>
+          <input type="text" maxlength="1000" value="${esc(r.example)}" data-vf="example" data-vlid="${esc(r.lid)}"
+                 placeholder="предложение, в котором встретилось"></label>
+        ${opts.length ? `<label class="fld"><span>SOURCE</span>
+          <select data-vf="source" data-vlid="${esc(r.lid)}">
+            ${opts.map(o => `<option value="${esc(o.v)}"${o.v === r.source ? ' selected' : ''}>${esc(o.t.length > 64 ? o.t.slice(0, 63) + '…' : o.t)}</option>`).join('')}
+          </select></label>` : ''}
+        <div class="row wrap mt" style="gap:8px">
+          <button class="btn sm primary" data-vready="${esc(r.lid)}">READY</button>
+          <button class="btn sm danger" data-vdel="${esc(r.lid)}">DEL</button>
+        </div>
+      </div>`;
+    });
+  }
+
+  /* ── экспорт ── */
+  h += `<div class="section-h"><h2>EXPORT</h2><span class="rule"></span>
+    <span class="pill${readyN ? ' ok' : ''}">READY ${readyN}</span></div>`;
+
+  h += `<div class="card">
+    <div class="grid g3">
+      ${stat(Vocab.count(null, 'raw'), 'raw, всего')}
+      ${stat(Vocab.count(null, 'ready'), 'ready, всего')}
+      ${stat(Vocab.count(null, 'exported'), 'exported, всего')}
+    </div>
+    <div class="row wrap mt2" style="gap:8px">
+      ${[2, 4].map(f => `<button class="btn sm${f === ANKI_FIELDS ? ' primary' : ''}" data-vfields="${f}">${f === 2 ? 'BASIC · 2' : 'CUSTOM · 4'}</button>`).join('')}
+    </div>
+    <div class="row wrap mt" style="gap:8px">
+      <button class="btn sm${ANKI_REEXPORT ? ' primary' : ' ghost'}" id="vReexp">+ EXPORTED</button>
+    </div>
+    <div class="row wrap mt2" style="gap:8px">
+      ${DECKS.map(d => {
+        const n = Vocab.count(d, 'ready') + (ANKI_REEXPORT ? Vocab.count(d, 'exported') : 0);
+        return `<button class="btn${n ? ' primary' : ''}" data-vexp="${d}"${n ? '' : ' disabled'}>EXPORT ${DECK_LABEL[d]} · ${n}</button>`;
+      }).join('')}
+    </div>
+  </div>`;
+
+  $('#v-anki').innerHTML = h;
+
+  /* ── события ── */
+  const inp = $('#vIn');
+  const add = () => {
+    const val = inp.value;
+    if (!val.trim()) return;
+    const res = Vocab.capture(ANKI_DECK, val, { source: ankiSource(cw), week: cw });
+    if (res.dup) { toast('Уже есть: ' + res.dup.word); inp.select(); return; }
+    if (res.tooLong) { toast('Слишком длинно'); return; }
+    if (!res.ok) return;
+    inp.value = '';
+    buzz(10);
+    /* Точечная перерисовка, а не renderAll: захват идёт подряд, по слову
+       в секунду, а renderAll перебирает все семь вкладок и 52 карточки
+       недель. Счётчик живёт в меню и на TODAY — их и обновляем. */
+    rAnki();
+    buildNav();
+    rToday();
+    /* Фокус возвращаем в поле: пять слов вводятся подряд, без мыши. */
+    if (!isCoarse()) { const n = $('#vIn'); if (n) n.focus(); }
+  };
+  inp.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); add(); } };
+  $('#vAdd').onclick = add;
+  if (!isCoarse() && VIEW === 'anki') inp.focus();
+
+  $$('[data-deck]').forEach(b => b.onclick = () => { ANKI_DECK = b.dataset.deck; rAnki(); });
+  $$('[data-vfields]').forEach(b => b.onclick = () => { ANKI_FIELDS = +b.dataset.vfields; rAnki(); });
+  $('#vReexp').onclick = () => { ANKI_REEXPORT = !ANKI_REEXPORT; rAnki(); };
+
+  $$('[data-vf]').forEach(el => el.onchange = () => {
+    const patch = {};
+    patch[el.dataset.vf] = el.value;
+    Vocab.patch(el.dataset.vlid, patch);
+  });
+
+  $$('[data-vready]').forEach(b => b.onclick = () => {
+    const res = Vocab.ready(b.dataset.vready);
+    if (res && res.need === 'meaning') { toast('Без значения карточка пустая'); return; }
+    buzz(12); rAnki(); renderAll();
+  });
+  $$('[data-vdel]').forEach(b => b.onclick = () => {
+    const row = Vocab.rows.find(x => x.lid === b.dataset.vdel);
+    if (!row || !confirm('Удалить «' + row.word + '»?')) return;
+    Vocab.remove(b.dataset.vdel).then(() => { rAnki(); renderAll(); });
+  });
+
+  $$('[data-vexp]').forEach(b => b.onclick = () => {
+    const n = Vocab.export(b.dataset.vexp, ANKI_FIELDS, ANKI_REEXPORT);
+    if (!n) { toast('Выгружать нечего'); return; }
+    toast('Выгружено карточек: ' + n);
+    rAnki(); renderAll();
+  });
 }
 
 function greeting() {
@@ -893,8 +1086,13 @@ function rMore() {
     <p class="tiny dim mt" style="margin-bottom:0">Никогда не переводи документ целиком — это иллюзия работы.</p></div>`;
 
   h += `<div class="section-h"><h2>LANGS</h2><span class="rule"></span></div>`;
+  /* Anki EN больше не вводится руками: число берётся из раздела ANKI,
+     накопительно к концу квартала — цели в LANGS тоже накопительные
+     (300 / 700 / 1100 / 1400). Старое ручное значение остаётся видимым,
+     пока своих выгрузок нет: это история до появления раздела. */
   LANGS.forEach(l => {
     const s = Store.lang(l.q);
+    const shown = Vocab.exportedByQuarter(l.q, 'en') || (Number(s.anki) || 0);
     h += `<div class="card wk q${l.q}">
       <div class="card-t"><h3>${QUARTERS[l.q].code} · English → ${l.target}</h3><span class="pill q${l.q}">${QUARTERS[l.q].range}</span></div>
       <p class="sm muted" style="margin:0 0 8px">${esc(l.en)}</p>
@@ -902,8 +1100,12 @@ function rMore() {
       <div class="grid g2">
         <label class="fld" style="margin:0"><span>EF SET</span>
           <input type="text" value="${esc(s.efset)}" data-lang="${l.q}" data-lk="efset" placeholder="${l.target}"></label>
-        <label class="fld" style="margin:0"><span>Anki EN (цель ${l.anki})</span>
-          <input type="text" value="${esc(s.anki)}" data-lang="${l.q}" data-lk="anki" placeholder="${l.anki}"></label>
+        <div class="fld" style="margin:0"><span>Anki EN (цель ${l.anki})</span>
+          <div class="row" style="gap:8px;align-items:baseline">
+            <b class="mono" style="font-size:19px">${shown}</b>
+            <span class="pill${shown >= l.anki ? ' ok' : ''}">${Math.min(100, Math.round(shown / l.anki * 100))}%</span>
+          </div>
+        </div>
       </div></div>`;
   });
 
@@ -1196,6 +1398,10 @@ async function openApp(note) {
   $('#picker').style.display = 'none';
   $('#app').classList.add('on');
   await Sync.init();
+  /* Словарь поднимается отдельно от прогресса: он в своей таблице.
+     Ошибку глотаем намеренно — офлайн это нормальный режим захвата,
+     слова уже лежат локально и уедут при следующей отправке. */
+  await Vocab.init().catch(e => console.warn('vocab init', e));
   tRestore();
   renderAll();
   decodeHeadings($('#v-' + VIEW));
@@ -1213,10 +1419,14 @@ Auth.onleave = () => {
   $('#picker').style.display = 'none';
   $('#gate').style.display = 'grid';
   Store.reset();                  // локальный кеш чужому не достаётся
+  Vocab.wipe();                   // словарь тем более: это карта незнания
 };
 
 Sync.onchange = () => { if ($('#app').classList.contains('on') && VIEW === 'more') rMore(); };
-window.addEventListener('pagehide', () => { if (Sync.user) Sync.push(); });
+window.addEventListener('pagehide', () => {
+  if (Sync.user) Sync.push();
+  if (Vocab.user) Vocab.push();
+});
 
 $('#themeBtn').onclick = () => {
   setTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark');
