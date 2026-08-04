@@ -142,6 +142,14 @@ const Store = {
       const day = iso(cur), dow = cur.getDay();
       const back = () => cur.setDate(cur.getDate() - 1);
 
+      /* Цепочка не тянется раньше старта трека (§12.1-ter). Без этой
+         строки счёт шёл по календарю: работа до старта давала streak,
+         которого сервер не признаёт. `public_stats_guard` режет поле
+         по (current_date - start_date), и человек видел на TODAY одно
+         число, а в RANK другое — молча, без ошибки. Границу на сервере
+         трогать нельзя, она закрывает накрутку (§11.3); врал клиент. */
+      if (day < META.start) break;
+
       if (dow === 0 || dow === 6) {           // выходной
         if (this.dayAny(day)) credits++;      // поработал — это кредит на долг
         back(); continue;
