@@ -1232,3 +1232,164 @@ html { scrollbar-color: var(--line-hot) transparent; scrollbar-width: thin; }
   letter-spacing: .08em; }
 .btn.sw.on { color: var(--cyan); border-color: color-mix(in srgb,var(--cyan) 42%,transparent);
   background: var(--grad-soft); }
+
+/* ══════════ КАЛЕНДАРЬ ПРОГРЕССА (§12.4) ══════════
+   Голограмма набирается свечением, градиентами и сканлайнами — тем же
+   языком, что фон и циферблат таймера. Ни blur(), ни backdrop-filter:
+   на iOS это рывки при инерционной прокрутке (§9).
+
+   transform живёт ТОЛЬКО внутри .cal-stage. Сцена не является предком
+   таббара (он лежит в #app рядом с .layout), поэтому containing block
+   для position: fixed она не создаёт. overflow: hidden обязателен:
+   без него горизонтальный transform расширил бы документ (§3.5, §9). */
+
+.cal-card { position: relative; }
+.cal-stage { position: relative; overflow: hidden; border-radius: var(--r-s);
+  /* сцена имеет свой слой, чтобы приближение не перерисовывало соседей */
+  contain: paint; }
+
+/* ── общий вид клетки состояния (легенда и мелкая сетка) ── */
+.cal-d, .mini { width: 10px; height: 10px; border-radius: 2px; display: block;
+  background: var(--surface-2); border: 1px solid var(--line); }
+.mini.pad, .cal-c.pad { background: none; border-color: transparent; pointer-events: none; }
+
+.s-full { background: var(--cyan); border-color: var(--cyan);
+  box-shadow: 0 0 6px -1px color-mix(in srgb, var(--cyan) 70%, transparent); }
+.s-part { background: color-mix(in srgb, var(--cyan) 40%, transparent);
+  border-color: color-mix(in srgb, var(--cyan) 58%, transparent); }
+.s-miss { background: color-mix(in srgb, var(--amber) 20%, transparent);
+  border-color: color-mix(in srgb, var(--amber) 42%, transparent); }
+.s-frz  { border-color: color-mix(in srgb, var(--amber) 40%, transparent);
+  background: repeating-linear-gradient(45deg,
+    color-mix(in srgb, var(--amber) 34%, transparent) 0 2px, transparent 2px 4px); }
+.s-off  { background: none; border-color: var(--line); opacity: .55; }
+.s-future { background: none; border-style: dashed; opacity: .4; }
+.s-out  { background: none; border-color: transparent; opacity: .18; }
+
+/* ══ УРОВЕНЬ YEAR: 13 месяцев ══ */
+.cal-year { display: grid; gap: 10px;
+  grid-template-columns: repeat(auto-fill, minmax(132px, 1fr)); padding: 2px; }
+
+.cal-mo { position: relative; display: flex; flex-direction: column; gap: 8px;
+  padding: 11px 11px 9px; text-align: left; cursor: pointer;
+  border: 1px solid var(--line); border-radius: var(--r-s);
+  background: var(--surface); color: inherit; overflow: hidden;
+  transition: border-color .22s, box-shadow .22s, background .22s; }
+/* тонкий диагональный отлив — «плёнка» голограммы, без blur */
+.cal-mo::after { content: ''; position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(115deg, transparent 42%,
+    color-mix(in srgb, var(--cyan) 9%, transparent) 50%, transparent 58%);
+  opacity: 0; transition: opacity .28s; }
+.cal-mo:hover { border-color: color-mix(in srgb, var(--cyan) 42%, transparent);
+  background: var(--grad-soft); box-shadow: var(--glow-soft); }
+.cal-mo:hover::after { opacity: 1; }
+.cal-mo.now { border-color: color-mix(in srgb, var(--amber) 46%, transparent); }
+.cal-mo.now::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 2px;
+  background: var(--amber); box-shadow: 0 0 8px var(--amber); }
+
+.cal-mo-h { display: flex; align-items: baseline; gap: 5px;
+  font-family: var(--mono); letter-spacing: .06em; }
+.cal-mo-h b { font-size: 12.5px; color: var(--txt); }
+.cal-mo-h small { font-size: 10px; color: var(--txt-3); }
+.cal-mo-p { margin-left: auto; font-size: 10px; color: var(--cyan); }
+.cal-mini { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2.5px; }
+.cal-mini .mini { width: 100%; aspect-ratio: 1; height: auto; }
+.cal-mo-bar { display: block; height: 2px; border-radius: 2px; background: var(--line); overflow: hidden; }
+.cal-mo-bar i { display: block; height: 100%; background: var(--cyan);
+  box-shadow: 0 0 6px -1px var(--cyan); }
+
+/* ══ УРОВЕНЬ MONTH: один месяц крупно ══ */
+.cal-month { padding: 4px 2px 2px; }
+.cal-nav { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+.cal-nav .spacer { flex: 1; }
+.cal-arrow { width: 30px; height: 30px; flex: none; display: grid; place-items: center;
+  border: 1px solid var(--line); border-radius: var(--r-s); background: var(--surface);
+  color: var(--txt-2); cursor: pointer; transition: color .2s, border-color .2s, background .2s; }
+.cal-arrow svg { width: 15px; height: 15px; }
+.cal-arrow:first-of-type svg { transform: rotate(180deg); }
+.cal-arrow:hover:not(:disabled) { color: var(--cyan); background: var(--grad-soft);
+  border-color: color-mix(in srgb, var(--cyan) 42%, transparent); }
+.cal-arrow:disabled { opacity: .3; cursor: default; }
+.cal-title { display: flex; align-items: baseline; gap: 8px; }
+.cal-title b { font-family: var(--mono); font-size: 15px; letter-spacing: .08em; color: var(--txt); }
+.cal-title span { font-size: 12px; }
+
+.cal-dow-big, .cal-row { display: grid; grid-template-columns: 34px repeat(7, 1fr); gap: 5px; }
+.cal-dow-big { padding-left: 34px; grid-template-columns: repeat(7, 1fr);
+  font-family: var(--mono); font-size: 9.5px; color: var(--txt-3);
+  letter-spacing: .1em; margin-bottom: 6px; }
+.cal-dow-big span { text-align: center; }
+.cal-rows { display: flex; flex-direction: column; gap: 5px; }
+.cal-wn { display: grid; place-items: center; }
+.cal-wn button { font-size: 9.5px; letter-spacing: .05em; color: var(--txt-3);
+  background: none; border: 1px solid transparent; border-radius: 5px;
+  padding: 3px 4px; cursor: pointer; transition: color .18s, border-color .18s; }
+.cal-wn button:hover { color: var(--cyan); border-color: color-mix(in srgb,var(--cyan) 34%,transparent); }
+
+.cal-c { position: relative; aspect-ratio: 1; min-height: 34px; display: flex;
+  flex-direction: column; align-items: center; justify-content: center; gap: 1px;
+  border: 1px solid var(--line); border-radius: var(--r-s);
+  background: var(--surface-2); color: var(--txt-2); cursor: pointer; overflow: hidden;
+  transition: border-color .18s, box-shadow .18s, color .18s; }
+.cal-c b { font-size: 13px; font-weight: 600; line-height: 1; }
+.cal-c u { font-size: 8.5px; text-decoration: none; opacity: .8; line-height: 1; }
+.cal-c:hover { border-color: var(--cyan); box-shadow: var(--glow-soft); color: var(--txt); }
+.cal-c.pad { background: none; border-color: transparent; cursor: default; }
+.cal-c.s-full { color: var(--bg, #06090f); }
+.cal-c.s-full b, .cal-c.s-full u { color: var(--bg, #06090f); }
+.cal-c.s-out { cursor: default; }
+.cal-c.now { border-color: var(--amber); box-shadow: 0 0 0 1px var(--amber), 0 0 14px -4px var(--amber); }
+.cal-c.now::after { content: ''; position: absolute; bottom: 3px; width: 3px; height: 3px;
+  border-radius: 50%; background: var(--amber); }
+
+/* ── легенда и подсказка ── */
+.cal-legend { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 14px;
+  font-family: var(--mono); font-size: 10.5px; color: var(--txt-3); }
+.cal-lg { display: inline-flex; align-items: center; gap: 5px; }
+.cal-tip { margin-top: 8px; min-height: 15px; font-size: 11px; color: var(--txt-2);
+  border-top: 1px solid var(--line); padding-top: 8px; }
+
+/* ── приближение и листание ── */
+/* Все четыре кадра трогают только opacity и transform, и только внутри
+   .cal-stage с overflow: hidden. За её пределы ничего не выходит. */
+.cal-in  { animation: calZoomIn .34s var(--ease) both; }
+.cal-out { animation: calZoomOut .3s var(--ease) both; }
+.cal-l   { animation: calSlideL .26s var(--ease) both; }
+.cal-r   { animation: calSlideR .26s var(--ease) both; }
+@keyframes calZoomIn  { from { opacity: 0; transform: scale(.9) } }
+@keyframes calZoomOut { from { opacity: 0; transform: scale(1.06) } }
+@keyframes calSlideL  { from { opacity: 0; transform: translateX(14px) } }
+@keyframes calSlideR  { from { opacity: 0; transform: translateX(-14px) } }
+
+/* появление месяцев волной — только на широком экране (§4.1) */
+@media (min-width: 880px) {
+  .cal-year .cal-mo { animation: calUp .4s var(--ease) backwards; }
+  .cal-year .cal-mo:nth-child(1){animation-delay:.02s} .cal-year .cal-mo:nth-child(2){animation-delay:.05s}
+  .cal-year .cal-mo:nth-child(3){animation-delay:.08s} .cal-year .cal-mo:nth-child(4){animation-delay:.11s}
+  .cal-year .cal-mo:nth-child(5){animation-delay:.14s} .cal-year .cal-mo:nth-child(6){animation-delay:.17s}
+  .cal-year .cal-mo:nth-child(7){animation-delay:.20s} .cal-year .cal-mo:nth-child(8){animation-delay:.23s}
+  .cal-year .cal-mo:nth-child(9){animation-delay:.26s} .cal-year .cal-mo:nth-child(10){animation-delay:.29s}
+  .cal-year .cal-mo:nth-child(11){animation-delay:.32s} .cal-year .cal-mo:nth-child(12){animation-delay:.35s}
+  .cal-year .cal-mo:nth-child(13){animation-delay:.38s}
+  @keyframes calUp { from { opacity: 0 } }
+}
+@media (max-width: 520px) {
+  .cal-year { grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 8px; }
+  .cal-c { min-height: 30px; }
+  .cal-c b { font-size: 12px; }
+  .cal-dow-big, .cal-row { grid-template-columns: 26px repeat(7, 1fr); gap: 4px; }
+  .cal-dow-big { padding-left: 26px; grid-template-columns: repeat(7, 1fr); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cal-in, .cal-out, .cal-l, .cal-r, .cal-year .cal-mo { animation: none; }
+}
+
+/* Подсветка недели, на которую увёл календарь. Только тень: transform
+   здесь дал бы containing block предку таббара (§3.5). */
+.wk.flash { box-shadow: 0 0 0 2px var(--cyan), var(--glow-soft); }
+
+/* Сессия и экзамен — на номере недели, не на клетках дня. */
+.cal-wn button.sess { color: var(--amber); border-color: color-mix(in srgb,var(--amber) 34%,transparent); }
+.cal-wn button.exam { color: var(--amber); font-weight: 700;
+  border-color: color-mix(in srgb,var(--amber) 55%,transparent);
+  box-shadow: 0 0 8px -3px var(--amber); }

@@ -987,6 +987,283 @@ function tRestore() {
 }
 
 /* ─────────── ГОД ─────────── */
+/* ═══════════ КАЛЕНДАРЬ ПРОГРЕССА (§12.4) ═══════════
+
+   Два уровня. YEAR — 13 месяцев трека мелкой матрицей, читается одним
+   взглядом. MONTH — один месяц крупно, с числами, номерами недель
+   и разбором дня. Переход между ними — приближение, как в календаре
+   телефона.
+
+   Про `transform` в приближении. §3.5 запрещает его у ПРЕДКОВ элемента
+   с `position: fixed`. Таббар лежит в `#app` рядом с `.layout`, а сцена
+   календаря — внутри `main` → `.layout`. То есть сцена предком таббара
+   НЕ является, и масштабировать её безопасно. Дополнительно она обёрнута
+   в `overflow: hidden`: без этого горизонтальный `transform` расширил бы
+   документ, Safari ужал бы страницу, и `fixed` уехал бы вместе
+   с layout-viewport (§9). Проверяется пробным `fixed`-элементом.
+
+   Никакого `blur()` и `backdrop-filter`: на iOS это рывки при инерционной
+   прокрутке (§9). «Голограмма» набирается свечением, градиентами
+   и сканлайнами — тем же языком, на котором уже говорит фон (§3.10).
+
+   Данные берутся из `Store.d.days` как есть. Календарь ничего не пишет
+   и не пересчитывает: он представление, а не источник истины. */
+
+let CAL_MODE = 'year';   // 'year' | 'month'
+let CAL_I = 0;           // индекс месяца в calMonths()
+
+const MON_S = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
+const MON_L = ['ЯНВАРЬ','ФЕВРАЛЬ','МАРТ','АПРЕЛЬ','МАЙ','ИЮНЬ','ИЮЛЬ',
+               'АВГУСТ','СЕНТЯБРЬ','ОКТЯБРЬ','НОЯБРЬ','ДЕКАБРЬ'];
+const DOW_S = ['ПН','ВТ','СР','ЧТ','ПТ','СБ','ВС'];
+
+/** Дата + n дней, обе в ISO. Считаем в UTC: в локальной зоне переход
+ *  на летнее время сдвинул бы клетку на сутки. */
+function isoPlus(day, n) {
+  const d = new Date(day + 'T00:00:00Z');
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
+}
+const isoOf = (y, m, d) => new Date(Date.UTC(y, m, d)).toISOString().slice(0, 10);
+/** Понедельник = 0. В трекере неделя начинается с понедельника, а getUTCDay
+ *  считает от воскресенья — без сдвига сетка месяца съезжает на день. */
+const dowMon = day => (new Date(day + 'T00:00:00Z').getUTCDay() + 6) % 7;
+
+/** Месяцы, которые пересекает трек. Их 13: с августа 2026 по август 2027. */
+function calMonths() {
+  const out = [];
+  const s = new Date(META.start + 'T00:00:00Z'), e = new Date(META.end + 'T00:00:00Z');
+  const d = new Date(Date.UTC(s.getUTCFullYear(), s.getUTCMonth(), 1));
+  while (d <= e) {
+    out.push({ y: d.getUTCFullYear(), m: d.getUTCMonth() });
+    d.setUTCMonth(d.getUTCMonth() + 1);
+  }
+  return out;
+}
+
+/** Состояние дня. Один источник правды для обоих уровней: если развести
+ *  их по разным функциям, мелкая сетка однажды покрасит день не так,
+ *  как крупная, и заметить это будет нечем. */
+function calState(day, today) {
+  if (day < META.start || day > META.end) return 'out';
+  if (Store.dayAny(day))            return Store.dayComplete(day) ? 'full' : 'part';
+  if (own(Store.d.freezes || {}, day, null)) return 'frz';
+  if (day > today)                  return 'future';
+  const dow = dowMon(day);
+  return dow > 4 ? 'off' : 'miss';
+}
+
+/** Номер недели трека, которой принадлежит день. null — день вне трека. */
+function weekOfDay(day) {
+  if (day < META.start || day > META.end) return null;
+  const w = WEEKS.find(w => day >= w.start && day <= w.end);
+  return w ? w.w : null;
+}
+
+function monthDays(y, m) {
+  const last = new Date(Date.UTC(y, m + 1, 0)).getUTCDate();
+  const out = [];
+  for (let d = 1; d <= last; d++) out.push(isoOf(y, m, d));
+  return out;
+}
+
+/** Сводка месяца: сколько рабочих дней закрыто из тех, что уже прошли. */
+function monthStat(y, m, today) {
+  const days = monthDays(y, m);
+  let done = 0, due = 0;
+  days.forEach(day => {
+    const st = calState(day, today);
+    if (st === 'full' || st === 'part') { done++; due++; }
+    else if (st === 'miss') due++;
+  });
+  return { done, due, pct: due ? Math.round(done / due * 100) : 0, days: days.length };
+}
+
+/* ─────────── уровень YEAR: 13 месяцев мелко ─────────── */
+function calYearHtml(today) {
+  const months = calMonths();
+  return `<div class="cal-year">${months.map((mo, i) => {
+    const days = monthDays(mo.y, mo.m);
+    const pad = dowMon(days[0]);
+    const st = monthStat(mo.y, mo.m, today);
+    const cur = days.some(d => d === today);
+    const cells = Array(pad).fill('<i class="mini pad"></i>')
+      .concat(days.map(d => `<i class="mini s-${calState(d, today)}"></i>`)).join('');
+    return `<button class="cal-mo${cur ? ' now' : ''}" data-mo="${i}" type="button">
+      <span class="cal-mo-h">
+        <b>${MON_S[mo.m]}</b><small class="mono">'${String(mo.y).slice(2)}</small>
+        ${st.due ? `<span class="cal-mo-p mono">${st.pct}%</span>` : ''}
+      </span>
+      <span class="cal-mini">${cells}</span>
+      <span class="cal-mo-bar"><i style="width:${st.pct}%"></i></span>
+    </button>`;
+  }).join('')}</div>`;
+}
+
+/* ─────────── уровень MONTH: один месяц крупно ─────────── */
+function calMonthHtml(i, today) {
+  const months = calMonths();
+  const mo = months[Math.max(0, Math.min(i, months.length - 1))];
+  const days = monthDays(mo.y, mo.m);
+  const pad = dowMon(days[0]);
+  const st = monthStat(mo.y, mo.m, today);
+
+  /* Раскладываем по строкам-неделям, чтобы слева поставить номер недели
+     трека: это и есть связь календаря с моделью трекера. */
+  const slots = Array(pad).fill(null).concat(days);
+  while (slots.length % 7) slots.push(null);
+  let rows = '';
+  for (let r = 0; r < slots.length / 7; r++) {
+    const row = slots.slice(r * 7, r * 7 + 7);
+    const wn = row.map(weekOfDay).find(x => x != null) || null;
+    /* Сессия и экзамен помечаются на номере недели, а не заливкой клеток:
+       заливка спорила бы с цветом дней, а он здесь несёт данные (§12.4). */
+    const sess = wn && META.sessionWeeks.includes(wn);
+    const exam = wn ? own(META.examWeeks, String(wn), null) : null;
+    rows += `<div class="cal-row">
+      <span class="cal-wn mono">${wn
+        ? `<button type="button" class="${sess ? 'sess' : ''}${exam ? ' exam' : ''}"
+             data-wk-open="${wn}" title="${exam ? esc(exam) : sess ? 'SESSION MODE' : 'W' + wn}">W${wn}</button>`
+        : ''}</span>
+      ${row.map(day => {
+        if (!day) return `<i class="cal-c pad"></i>`;
+        const s = calState(day, today);
+        const mins = Store.dayMinutes(day);
+        return `<button type="button" class="cal-c s-${s}${day === today ? ' now' : ''}"
+          data-d="${day}" data-w="${wn || ''}">
+          <b>${+day.slice(8)}</b>${mins ? `<u class="mono">${mins}</u>` : ''}
+        </button>`;
+      }).join('')}
+    </div>`;
+  }
+
+  const prev = i > 0, next = i < months.length - 1;
+  return `<div class="cal-month" data-i="${i}">
+    <div class="cal-nav">
+      <button class="cal-arrow" type="button" data-mstep="-1" ${prev ? '' : 'disabled'} aria-label="Раньше">${ICONS.chev}</button>
+      <div class="cal-title">
+        <b>${MON_L[mo.m]}</b><span class="mono dim">${mo.y}</span>
+      </div>
+      <button class="cal-arrow" type="button" data-mstep="1" ${next ? '' : 'disabled'} aria-label="Позже">${ICONS.chev}</button>
+      <span class="spacer"></span>
+      <span class="pill mono">${st.done}/${st.due}</span>
+      <button class="btn sm" type="button" data-cal-back>YEAR</button>
+    </div>
+    <div class="cal-dow-big">${DOW_S.map(d => `<span>${d}</span>`).join('')}</div>
+    <div class="cal-rows">${rows}</div>
+  </div>`;
+}
+
+function calendarHtml() {
+  const today = iso(new Date());
+  const legend = [['full','день закрыт'],['part','частично'],['miss','пропуск'],
+                  ['frz','заморозка'],['off','выходной'],['future','впереди']]
+    .map(([k, t]) => `<span class="cal-lg"><i class="cal-d s-${k}"></i>${t}</span>`).join('');
+
+  return `<div class="section-h"><h2>CALENDAR</h2><span class="rule"></span>
+      <span class="tiny dim mono">${CAL_MODE === 'year' ? 'нажми месяц' : 'нажми день'}</span></div>
+    <div class="card hud scanfx cal-card">
+      <span class="beam"></span>
+      <div class="cal-stage" id="calStage">
+        ${CAL_MODE === 'year' ? calYearHtml(today) : calMonthHtml(CAL_I, today)}
+      </div>
+      <div class="cal-legend">${legend}</div>
+      <div class="cal-tip mono" id="calTip">&nbsp;</div>
+    </div>`;
+}
+
+/** Перерисовываем ТОЛЬКО сцену, а не весь YEAR: rYear() заново запускает
+ *  кольцо, счёт чисел и волну появления, и переключение месяца выглядело
+ *  бы как перезагрузка вкладки. */
+function calRepaint(anim) {
+  const stage = $('#calStage');
+  if (!stage) return;
+  const today = iso(new Date());
+  stage.innerHTML = CAL_MODE === 'year' ? calYearHtml(today) : calMonthHtml(CAL_I, today);
+  if (anim && !REDUCED) {
+    const el = stage.firstElementChild;
+    if (el) { el.classList.add(anim); el.addEventListener('animationend', () => el.classList.remove(anim), { once: true }); }
+  }
+}
+
+/** Один слушатель на сцену. 364 клетки — это 364 замыкания, если вешать
+ *  на каждую; день и месяц достаются из data-атрибутов. */
+function wireCalendar() {
+  const stage = $('#calStage'), tip = $('#calTip');
+  if (!stage || !tip) return;
+  const idle = '&nbsp;';
+
+  stage.onclick = e => {
+    const back = e.target.closest('[data-cal-back]');
+    if (back) { CAL_MODE = 'year'; calRepaint('cal-out'); tip.innerHTML = idle; return; }
+
+    const step = e.target.closest('[data-mstep]');
+    if (step) {
+      const n = calMonths().length;
+      CAL_I = Math.max(0, Math.min(n - 1, CAL_I + (+step.dataset.mstep)));
+      calRepaint(+step.dataset.mstep > 0 ? 'cal-l' : 'cal-r');
+      return;
+    }
+
+    const wk = e.target.closest('[data-wk-open]');
+    if (wk) { openWeek(+wk.dataset.wkOpen); return; }
+
+    const mo = e.target.closest('[data-mo]');
+    if (mo) { CAL_I = +mo.dataset.mo; CAL_MODE = 'month'; calRepaint('cal-in'); return; }
+
+    const day = e.target.closest('.cal-c[data-d]');
+    if (day && day.dataset.w) openWeek(+day.dataset.w);
+  };
+
+  /* Наведение меняет только строку подсказки — сетка не перерисовывается. */
+  stage.onpointerover = e => {
+    const c = e.target.closest('.cal-c[data-d], .cal-mo');
+    if (!c) return;
+    if (c.dataset.d) {
+      const d = c.dataset.d;
+      const blocks = DAILY.filter(b => own(Store.day(d), b.id, false)).map(b => b.name);
+      const frz = own(Store.d.freezes || {}, d, null);
+      tip.innerHTML = `${fmtRU(d)} · ${c.dataset.w ? 'W' + c.dataset.w : 'вне трека'} · ${Store.dayMinutes(d)} мин` +
+        (blocks.length ? ' · ' + esc(blocks.join(', ')) : frz ? ' · заморожен' : '');
+    } else {
+      const months = calMonths(), mo = months[+c.dataset.mo];
+      const s = monthStat(mo.y, mo.m, iso(new Date()));
+      tip.innerHTML = `${MON_L[mo.m]} ${mo.y} · закрыто ${s.done} из ${s.due}`;
+    }
+  };
+  stage.onpointerleave = () => { tip.innerHTML = idle; };
+}
+
+/* Стрелки листают месяц, Escape возвращает к году. Слушатель глобальный,
+   но молчит везде, кроме открытой вкладки YEAR в режиме месяца, — иначе
+   он отберёт стрелки у полей ввода и у тренажёра (§10.2). */
+window.addEventListener('keydown', e => {
+  if (VIEW !== 'year' || CAL_MODE !== 'month') return;
+  if (!$('#calStage')) return;
+  const t = e.target;
+  if (t && /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName)) return;
+  if (e.metaKey || e.ctrlKey || e.altKey) return;
+  const n = calMonths().length;
+  if (e.key === 'ArrowRight' && CAL_I < n - 1) { CAL_I++; calRepaint('cal-l'); }
+  else if (e.key === 'ArrowLeft' && CAL_I > 0) { CAL_I--; calRepaint('cal-r'); }
+  else if (e.key === 'Escape') { CAL_MODE = 'year'; calRepaint('cal-out'); }
+  else return;
+  e.preventDefault();
+});
+
+/** Открыть карточку недели на WEEKS. Переход уже существует — новых
+ *  экранов календарь не заводит (§12.4). */
+function openWeek(n) {
+  WEEK_FILTER = 'all';
+  go('weeks');
+  const card = $(`#v-weeks [data-wk="${n}"]`);
+  if (!card) return;
+  card.classList.add('open');
+  card.scrollIntoView({ block: 'center', behavior: REDUCED ? 'instant' : 'smooth' });
+  card.classList.add('flash');
+  setTimeout(() => card.classList.remove('flash'), 1000);
+}
+
 function rYear() {
   const t = Store.totals();
   const R = 74, C = 2 * Math.PI * R;
@@ -1040,6 +1317,8 @@ function rYear() {
     </div>`;
   });
 
+  h += calendarHtml();
+
   h += `<div class="section-h"><h2>CHECKPOINTS</h2><span class="rule"></span><span class="tiny dim">заполняй факт</span></div>`;
   const LBL = { hours:'Часов накоплено', repos:'Репозиториев', thm:'THM rooms', anki:'Карточек Anki EN',
                 efset:'English (EF SET)', rules:'Detection rules', cases:'Инцидентов разобрано', apps:'Откликов' };
@@ -1083,6 +1362,8 @@ function rYear() {
     $$('#v-year .bar > i').forEach(bar => { const w = bar.style.width; bar.style.width = '0%';
       requestAnimationFrame(() => bar.style.width = w); });
   });
+
+  wireCalendar();
 
   $$('[data-ms]').forEach(i => i.onchange = () => {
     Store.setMetric(+i.dataset.ms, i.dataset.mk, i.value); Sync.schedule(); toast('Сохранено');
