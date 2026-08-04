@@ -1,9 +1,9 @@
 // SOC Roadmap 365 — справочные данные
-// Профиль: студент ИБ, Брест · 3 ч/день × 5 дней · старт 03.08.2026 · финиш 01.08.2027
+// Профиль: студент ИБ, Брест · 3 ч/день × 5 дней · старт 10.08.2026 · финиш 08.08.2027
 
 const META = {
-  start: '2026-08-03',
-  end: '2027-08-01',
+  start: '2026-08-10',
+  end: '2027-08-08',
   totalHours: 630.8,
   weeklyHours: 12.9,
   sessionWeeks: [24, 25, 45, 46],
@@ -11,16 +11,16 @@ const META = {
 };
 
 const QUARTERS = {
-  1: { code: 'Q1', name: 'FOUNDATIONS', range: 'W1–W13', dates: '03.08 – 01.11.2026', hours: 167.7,
+  1: { code: 'Q1', name: 'FOUNDATIONS', range: 'W1–W13', dates: '10.08 – 08.11.2026', hours: 167.7,
        goal: 'Networking, Linux, Windows, AD на уровне уверенного джуна. Home lab развёрнут.',
        principle: 'Ты не «изучаешь сети», ты строишь и ломаешь сети. Ни одна неделя не заканчивается конспектом — только рабочим артефактом.' },
-  2: { code: 'Q2', name: 'AUTOMATION', range: 'W14–W26', dates: '02.11.2026 – 31.01.2027', hours: 147.7,
+  2: { code: 'Q2', name: 'AUTOMATION', range: 'W14–W26', dates: '09.11.2026 – 07.02.2027', hours: 147.7,
        goal: 'Python, Bash, Regex, SQL. Три рабочих security-скрипта в GitHub. MITRE ATT&CK освоен.',
        principle: 'Ты учишь Python не как программист, а как аналитик: прочитать файл → распарсить строку → посчитать → выдать отчёт.' },
-  3: { code: 'Q3', name: 'BLUE TEAM CORE', range: 'W27–W39', dates: '01.02 – 02.05.2027', hours: 167.7,
+  3: { code: 'Q3', name: 'BLUE TEAM CORE', range: 'W27–W39', dates: '08.02 – 09.05.2027', hours: 167.7,
        goal: 'Wazuh, ELK, Splunk. Анализ логов и трафика. 10+ разобранных инцидентов.',
        principle: 'Квартал, ради которого существуют предыдущие два. Здесь ты перестаёшь быть студентом и становишься аналитиком.' },
-  4: { code: 'Q4', name: 'JOB READY', range: 'W40–W52', dates: '03.05 – 01.08.2027', hours: 147.7,
+  4: { code: 'Q4', name: 'JOB READY', range: 'W40–W52', dates: '10.05 – 08.08.2027', hours: 147.7,
        goal: 'THM SOC L1 закрыт, BTLO, портфолио, CV, 60+ откликов, интервью.',
        principle: 'Знания больше не наращиваются вширь. Всё конвертируется в доказательство компетентности.' }
 };
@@ -41,16 +41,16 @@ const DAY_VARIANTS = [
 ];
 
 const MILESTONES = [
-  { w: 13, date: '2026-11-01', name: 'Foundations Exam',
+  { w: 13, date: '2026-11-08', name: 'Foundations Exam',
     test: 'Собираешь сеть в Packet Tracer с VLAN + DHCP + ACL; ставишь Ubuntu Server с нуля и настраиваешь SSH + firewall + users по чек-листу без гуглинга.',
     targets: { hours: 168, repos: 2, thm: 30, anki: 300, efset: 'A2', rules: 0, cases: 1, apps: 0 } },
-  { w: 26, date: '2027-01-31', name: 'Automation Exam',
+  { w: 26, date: '2027-02-07', name: 'Automation Exam',
     test: 'Пишешь с нуля Python-скрипт, парсящий auth.log и выдающий top-10 IP по failed SSH, за ≤ 45 минут.',
     targets: { hours: 323, repos: 5, thm: 45, anki: 700, efset: 'A2+', rules: 0, cases: 3, apps: 0 } },
-  { w: 39, date: '2027-05-02', name: 'Blue Team Exam',
+  { w: 39, date: '2027-05-09', name: 'Blue Team Exam',
     test: 'Разбираешь незнакомый PCAP + Windows Event Log и пишешь incident report по шаблону за ≤ 2 часа.',
     targets: { hours: 491, repos: 7, thm: 70, anki: 1100, efset: 'B1-', rules: 15, cases: 12, apps: 0 } },
-  { w: 52, date: '2027-08-01', name: 'Job Ready',
+  { w: 52, date: '2027-08-08', name: 'Job Ready',
     test: '60+ откликов, ≥ 5 интервью, English B1+, портфолио из 8 репозиториев.',
     targets: { hours: 631, repos: 8, thm: 110, anki: 1400, efset: 'B1+', rules: 20, cases: 25, apps: 60 } }
 ];
