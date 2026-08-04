@@ -1244,9 +1244,12 @@ html { scrollbar-color: var(--line-hot) transparent; scrollbar-width: thin; }
    без него горизонтальный transform расширил бы документ (§3.5, §9). */
 
 .cal-card { position: relative; }
-.cal-stage { position: relative; overflow: hidden; border-radius: var(--r-s);
-  /* сцена имеет свой слой, чтобы приближение не перерисовывало соседей */
-  contain: paint; }
+/* `contain: paint` здесь был и убран. Он делает элемент containing block
+   для `position: fixed` потомков — то есть ровно та мина из §3.5, за которую
+   уже дважды платили, только взведённая заново. Сейчас внутри сцены ничего
+   фиксированного нет, и баг был бы не виден; он выстрелил бы позже и молча.
+   Обрезку и так даёт `overflow: hidden`, ради которого сцена и заведена. */
+.cal-stage { position: relative; overflow: hidden; border-radius: var(--r-s); }
 
 /* ── общий вид клетки состояния (легенда и мелкая сетка) ── */
 .cal-d, .mini { width: 10px; height: 10px; border-radius: 2px; display: block;
@@ -1574,3 +1577,43 @@ html { scrollbar-color: var(--line-hot) transparent; scrollbar-width: thin; }
 .cal-fx:not(.boot) .cal-fx-sweep { width: 22%; left: -22%; }
 .cal-fx:not(.boot) .cal-fx-grid { animation-name: fxGridSoft; }
 @keyframes fxGridSoft { 0% { opacity: 0 } 25% { opacity: .22 } 100% { opacity: 0 } }
+
+/* ══════════ КАЛЕНДАРЬ НА ТЕЛЕФОНЕ ══════════
+   Блок был потерян при замене анимаций: вырез задел соседние правила.
+   Поймано проверкой арифметики ширин на 390 px, не глазами.
+
+   Считаем честно для 390 px: вьюпорт 390 − padding main 32 − padding
+   карточки 28 = 330 px внутри. Дальше сетка месяца: колонка недели 26,
+   семь клеток, семь промежутков по 4 → клетка ≈ 40 px. Под палец
+   этого хватает (минимум 30 px задан отдельно). */
+@media (max-width: 520px) {
+  /* Две колонки месяцев вместо семи: на 390 px семиколоночная сетка
+     дала бы клетки по 2 px, то есть кашу вместо данных. */
+  .cal-year { grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 8px; }
+  .cal-mo { padding: 9px 9px 8px; }
+  .cal-mo-h b { font-size: 11.5px; }
+
+  .cal-dow-big, .cal-row { grid-template-columns: 26px repeat(7, 1fr); gap: 4px; }
+  .cal-dow-big { padding-left: 26px; grid-template-columns: repeat(7, 1fr);
+    font-size: 8.5px; letter-spacing: .06em; }
+  .cal-c { min-height: 34px; max-height: 46px; }
+  .cal-c b { font-size: 12px; }
+  .cal-c u { font-size: 8px; }
+  .cal-wn button { font-size: 8.5px; padding: 2px 3px; }
+
+  /* Шапка месяца в одну строку не влезает: счётчик уводим на вторую. */
+  .cal-nav { flex-wrap: wrap; gap: 8px; }
+  .cal-nav .spacer { flex: 1 1 auto; }
+  .cal-title b { font-size: 13px; letter-spacing: .05em; }
+
+  .cal-legend { gap: 8px; font-size: 9.5px; }
+  .cal-tip { font-size: 10px; }
+}
+
+/* На совсем узких (360 px и меньше) легенда из шести пунктов занимает
+   три строки. Оставляем — это подпись к цвету, а не украшение: без неё
+   штриховка заморозки не читается. Ужимаем только промежутки. */
+@media (max-width: 380px) {
+  .cal-legend { gap: 6px 10px; }
+  .cal-year { grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); }
+}
