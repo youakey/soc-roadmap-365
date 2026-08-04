@@ -1349,47 +1349,228 @@ html { scrollbar-color: var(--line-hot) transparent; scrollbar-width: thin; }
 .cal-tip { margin-top: 8px; min-height: 15px; font-size: 11px; color: var(--txt-2);
   border-top: 1px solid var(--line); padding-top: 8px; }
 
-/* ── приближение и листание ── */
-/* Все четыре кадра трогают только opacity и transform, и только внутри
-   .cal-stage с overflow: hidden. За её пределы ничего не выходит. */
-.cal-in  { animation: calZoomIn .34s var(--ease) both; }
-.cal-out { animation: calZoomOut .3s var(--ease) both; }
-.cal-l   { animation: calSlideL .26s var(--ease) both; }
-.cal-r   { animation: calSlideR .26s var(--ease) both; }
-@keyframes calZoomIn  { from { opacity: 0; transform: scale(.9) } }
-@keyframes calZoomOut { from { opacity: 0; transform: scale(1.06) } }
-@keyframes calSlideL  { from { opacity: 0; transform: translateX(14px) } }
-@keyframes calSlideR  { from { opacity: 0; transform: translateX(-14px) } }
-
-/* появление месяцев волной — только на широком экране (§4.1) */
-@media (min-width: 880px) {
-  .cal-year .cal-mo { animation: calUp .4s var(--ease) backwards; }
-  .cal-year .cal-mo:nth-child(1){animation-delay:.02s} .cal-year .cal-mo:nth-child(2){animation-delay:.05s}
-  .cal-year .cal-mo:nth-child(3){animation-delay:.08s} .cal-year .cal-mo:nth-child(4){animation-delay:.11s}
-  .cal-year .cal-mo:nth-child(5){animation-delay:.14s} .cal-year .cal-mo:nth-child(6){animation-delay:.17s}
-  .cal-year .cal-mo:nth-child(7){animation-delay:.20s} .cal-year .cal-mo:nth-child(8){animation-delay:.23s}
-  .cal-year .cal-mo:nth-child(9){animation-delay:.26s} .cal-year .cal-mo:nth-child(10){animation-delay:.29s}
-  .cal-year .cal-mo:nth-child(11){animation-delay:.32s} .cal-year .cal-mo:nth-child(12){animation-delay:.35s}
-  .cal-year .cal-mo:nth-child(13){animation-delay:.38s}
-  @keyframes calUp { from { opacity: 0 } }
-}
-@media (max-width: 520px) {
-  .cal-year { grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 8px; }
-  .cal-c { min-height: 30px; }
-  .cal-c b { font-size: 12px; }
-  .cal-dow-big, .cal-row { grid-template-columns: 26px repeat(7, 1fr); gap: 4px; }
-  .cal-dow-big { padding-left: 26px; grid-template-columns: repeat(7, 1fr); }
-}
-@media (prefers-reduced-motion: reduce) {
-  .cal-in, .cal-out, .cal-l, .cal-r, .cal-year .cal-mo { animation: none; }
-}
-
-/* Подсветка недели, на которую увёл календарь. Только тень: transform
-   здесь дал бы containing block предку таббара (§3.5). */
-.wk.flash { box-shadow: 0 0 0 2px var(--cyan), var(--glow-soft); }
-
 /* Сессия и экзамен — на номере недели, не на клетках дня. */
 .cal-wn button.sess { color: var(--amber); border-color: color-mix(in srgb,var(--amber) 34%,transparent); }
 .cal-wn button.exam { color: var(--amber); font-weight: 700;
   border-color: color-mix(in srgb,var(--amber) 55%,transparent);
   box-shadow: 0 0 8px -3px var(--amber); }
+
+/* Сетка месяца не должна растягиваться на всю ширину десктопа:
+   aspect-ratio: 1 при контейнере в 1300 px давал клетки по 180 px
+   высотой. Ширину ограничиваем — квадрат считается уже от неё. */
+.cal-month { max-width: 640px; margin: 0 auto; }
+.cal-c { max-height: 76px; }
+/* «Впереди» должно читаться как сетка, а не как пустота: до старта
+   трека таких дней 364 из 364, и без них календарь выглядит сломанным. */
+.s-future { opacity: .5; border-color: color-mix(in srgb, var(--line) 80%, var(--cyan)); }
+
+/* ══════════ КАЛЕНДАРЬ: РАЗВЁРТКА ИНТЕРФЕЙСА (§12.4) ══════════
+   Переход — не подсветка, а «загрузка панели»: сцена раскрывается
+   как визор, по ней проходит луч развёртки, клетки проявляются
+   каскадом, поверх на мгновение ложится сетка наводки.
+
+   Всё держится на opacity, transform и clip-path. Ни blur(), ни
+   backdrop-filter (§9). Задержки каскада берутся из --i, выставленного
+   в разметке: считать их setTimeout-ом нельзя, движение обязано идти
+   кадрами, а не таймерами (§3.10, §12.3).
+
+   Весь transform заперт внутри .cal-stage с overflow: hidden. Сцена
+   не предок таббара, так что containing block для position: fixed
+   она не создаёт (§3.5). */
+
+/* ── раскрытие как визор ── */
+.cal-in  { animation: calVisor .44s cubic-bezier(.16,1,.3,1) both; }
+.cal-out { animation: calCollapse .38s cubic-bezier(.16,1,.3,1) both; }
+.cal-l   { animation: calWarpL .42s cubic-bezier(.16,1,.3,1) both; }
+.cal-r   { animation: calWarpR .42s cubic-bezier(.16,1,.3,1) both; }
+
+@keyframes calVisor {
+  0%   { opacity: 0; transform: scale(.965); clip-path: inset(48% 0 48% 0); }
+  55%  { opacity: 1; clip-path: inset(0 0 0 0); }
+  100% { opacity: 1; transform: scale(1);      clip-path: inset(0 0 0 0); }
+}
+@keyframes calCollapse {
+  0%   { opacity: 0; transform: scale(1.05); clip-path: inset(0 42% 0 42%); }
+  60%  { opacity: 1; clip-path: inset(0 0 0 0); }
+  100% { opacity: 1; transform: scale(1); }
+}
+/* Листание месяца — «варп»: сдвиг со скосом и коротким рассинхроном,
+   как у кадра, который не успел прорисоваться. */
+@keyframes calWarpL {
+  0%   { opacity: 0; transform: translateX(38px) skewX(-5deg) scale(.985); }
+  45%  { opacity: 1; transform: translateX(-5px) skewX(1.5deg) scale(1); }
+  100% { opacity: 1; transform: none; }
+}
+@keyframes calWarpR {
+  0%   { opacity: 0; transform: translateX(-38px) skewX(5deg) scale(.985); }
+  45%  { opacity: 1; transform: translateX(5px) skewX(-1.5deg) scale(1); }
+  100% { opacity: 1; transform: none; }
+}
+
+/* ── каскад клеток: панель собирается по дню ── */
+.cal-in .cal-c, .cal-l .cal-c, .cal-r .cal-c {
+  animation: cellBoot .42s cubic-bezier(.16,1,.3,1) backwards;
+  animation-delay: calc(var(--i, 0) * 11ms);
+}
+.cal-in .cal-c { animation-delay: calc(120ms + var(--i, 0) * 13ms); }
+@keyframes cellBoot {
+  0%   { opacity: 0; transform: translateY(9px) scale(.72); }
+  60%  { opacity: 1; transform: translateY(0)   scale(1.04); }
+  100% { opacity: 1; transform: none; }
+}
+/* Число внутри клетки проявляется чуть позже самой клетки — рамка
+   приходит первой, содержимое «дозагружается». */
+.cal-in .cal-c-in, .cal-l .cal-c-in, .cal-r .cal-c-in {
+  animation: cellTxt .3s ease backwards;
+  animation-delay: calc(180ms + var(--i, 0) * 11ms);
+}
+@keyframes cellTxt { from { opacity: 0; letter-spacing: .3em; } }
+
+/* номера недель выезжают слева, строка за строкой */
+.cal-in .cal-wn button, .cal-l .cal-wn button, .cal-r .cal-wn button {
+  animation: wnIn .38s cubic-bezier(.16,1,.3,1) backwards;
+  animation-delay: calc(200ms + var(--r, 0) * 55ms);
+}
+@keyframes wnIn { from { opacity: 0; transform: translateX(-12px); } }
+
+/* шапка месяца и подписи дней */
+.cal-in .cal-nav, .cal-in .cal-dow-big { animation: navIn .4s ease backwards; }
+.cal-in .cal-nav { animation-delay: .06s; }
+.cal-in .cal-dow-big { animation-delay: .12s; }
+@keyframes navIn { from { opacity: 0; transform: translateY(-8px); } }
+
+/* ── карточки месяцев в обзоре ── */
+.cal-out .cal-mo, .cal-year .cal-mo {
+  animation: moBoot .5s cubic-bezier(.16,1,.3,1) backwards;
+  animation-delay: calc(var(--i, 0) * 34ms);
+}
+@keyframes moBoot {
+  0%   { opacity: 0; transform: translateY(10px) scale(.94); }
+  100% { opacity: 1; transform: none; }
+}
+
+/* ── слой развёртки: луч и сетка наводки ── */
+.cal-fx { position: absolute; inset: 0; pointer-events: none; z-index: 3;
+  animation: fxLife .62s linear forwards; }
+.cal-fx.boot { animation-duration: .86s; }
+@keyframes fxLife { to { opacity: 0 } }
+
+.cal-fx-sweep { position: absolute; top: 0; bottom: 0; width: 34%; left: -34%;
+  background: linear-gradient(90deg, transparent,
+    color-mix(in srgb, var(--cyan) 16%, transparent) 55%,
+    color-mix(in srgb, var(--cyan) 60%, transparent) 88%, transparent);
+  border-right: 1px solid color-mix(in srgb, var(--cyan) 70%, transparent);
+  animation: fxSweep .62s cubic-bezier(.4,0,.2,1) forwards; }
+.cal-fx.boot .cal-fx-sweep { animation-duration: .86s; }
+@keyframes fxSweep { to { left: 100% } }
+
+/* Сетка наводки: короткая вспышка координатной сетки поверх сцены.
+   repeating-linear-gradient, а не десятки элементов (§3.10). */
+.cal-fx-grid { position: absolute; inset: 0; opacity: 0;
+  background:
+    repeating-linear-gradient(90deg, color-mix(in srgb,var(--cyan) 22%,transparent) 0 1px, transparent 1px 26px),
+    repeating-linear-gradient(0deg,  color-mix(in srgb,var(--cyan) 22%,transparent) 0 1px, transparent 1px 26px);
+  animation: fxGrid .62s ease forwards; }
+.cal-fx.boot .cal-fx-grid { animation-duration: .86s; }
+@keyframes fxGrid { 0% { opacity: 0 } 22% { opacity: .5 } 100% { opacity: 0 } }
+
+/* ── наведение на месяц: собственная развёртка ── */
+.cal-mo-scan { position: absolute; left: 0; right: 0; top: -100%; height: 100%;
+  pointer-events: none; opacity: 0;
+  background: linear-gradient(180deg, transparent,
+    color-mix(in srgb, var(--cyan) 26%, transparent), transparent); }
+.cal-mo:hover .cal-mo-scan { opacity: 1; animation: moScan 1.1s linear infinite; }
+@keyframes moScan { from { top: -100% } to { top: 100% } }
+
+/* Уважение к prefers-reduced-motion: показатели остаются, движение
+   выключается целиком — включая слой развёртки. */
+@media (prefers-reduced-motion: reduce) {
+  .cal-in, .cal-out, .cal-l, .cal-r,
+  .cal-in *, .cal-out *, .cal-l *, .cal-r *,
+  .cal-year .cal-mo, .cal-mo:hover .cal-mo-scan { animation: none !important; }
+  .cal-fx { display: none; }
+}
+
+/* ══════════ КАЛЕНДАРЬ: РАЗМЕР И ХАРАКТЕР ДВИЖЕНИЯ ══════════
+   Правки после первого показа: на десктопе календарь был великоват,
+   а перелив при наведении на месяц бил по глазам. §3.8: эффект
+   наведения показывает, что элемент живой, и не более — если он
+   заметен раньше содержимого, он слишком яркий. */
+
+/* ── компактнее на широком экране ── */
+@media (min-width: 880px) {
+  /* 13 месяцев в семь колонок — две ровные строки вместо разъезжающейся
+     сетки auto-fill, которая на широком мониторе растягивала карточки. */
+  .cal-year { grid-template-columns: repeat(7, 1fr); gap: 8px; }
+  .cal-mo { padding: 9px 9px 8px; gap: 6px; }
+  .cal-mo-h b { font-size: 11.5px; }
+  .cal-mini { gap: 2px; }
+}
+@media (min-width: 1280px) { .cal-year { grid-template-columns: repeat(7, 1fr); max-width: 980px; } }
+.cal-month { max-width: 520px; }
+.cal-c { max-height: 58px; min-height: 30px; }
+.cal-c b { font-size: 12px; }
+.cal-dow-big, .cal-row { gap: 4px; }
+
+/* ── наведение: одиночный проход вместо бесконечного перелива ── */
+.cal-mo-scan { animation: none; }
+.cal-mo:hover .cal-mo-scan {
+  opacity: 1;
+  animation: moScanOnce .55s cubic-bezier(.4,0,.2,1) 1;   /* один раз, не infinite */
+  background: linear-gradient(180deg, transparent,
+    color-mix(in srgb, var(--cyan) 14%, transparent), transparent);
+}
+@keyframes moScanOnce { from { top: -100% } to { top: 100% } }
+/* диагональный отлив приглушён вдвое: он был заметнее содержимого */
+.cal-mo::after { background: linear-gradient(115deg, transparent 44%,
+  color-mix(in srgb, var(--cyan) 5%, transparent) 50%, transparent 56%); }
+.cal-mo:hover { box-shadow: none; background: var(--surface); }
+.cal-mo:hover { border-color: color-mix(in srgb, var(--cyan) 46%, transparent); }
+
+/* ══ РАЗНЫЙ ХАРАКТЕР ДВИЖЕНИЯ ДЛЯ РАЗНЫХ ПЕРЕХОДОВ ══
+   Один и тот же кадр на все случаи читается как «что-то мигнуло».
+   Три перехода — три разных жеста. */
+
+/* 1. Приближение месяца: волна по диагонали от левого верхнего угла.
+      Формула (--r + --c) вместо линейного --i — фронт идёт наискось. */
+.cal-in .cal-c {
+  animation: cellDrop .46s cubic-bezier(.16,1,.3,1) backwards;
+  animation-delay: calc(130ms + (var(--r, 0) + var(--c, 0)) * 30ms);
+}
+@keyframes cellDrop {
+  0%   { opacity: 0; transform: translateY(-14px) scale(.6) rotate(-6deg); }
+  55%  { opacity: 1; transform: translateY(2px)  scale(1.06) rotate(1deg); }
+  100% { opacity: 1; transform: none; }
+}
+
+/* 2. Листание вперёд: колонки уходят волной слева направо. */
+.cal-l .cal-c {
+  animation: cellWipe .4s cubic-bezier(.16,1,.3,1) backwards;
+  animation-delay: calc(var(--c, 0) * 38ms);
+}
+/* 3. Листание назад: та же волна, но справа налево. */
+.cal-r .cal-c {
+  animation: cellWipe .4s cubic-bezier(.16,1,.3,1) backwards;
+  animation-delay: calc((6 - var(--c, 0)) * 38ms);
+}
+@keyframes cellWipe {
+  0%   { opacity: 0; transform: scaleX(.2); }
+  60%  { opacity: 1; transform: scaleX(1.04); }
+  100% { opacity: 1; transform: none; }
+}
+
+/* 4. Возврат к обзору: карточки месяцев «раскладываются», а не всплывают. */
+.cal-out .cal-mo {
+  animation: moDeal .52s cubic-bezier(.16,1,.3,1) backwards;
+  animation-delay: calc(var(--i, 0) * 28ms);
+}
+@keyframes moDeal {
+  0%   { opacity: 0; transform: translateY(-18px) rotate(-3deg) scale(.9); }
+  100% { opacity: 1; transform: none; }
+}
+
+/* Луч развёртки при листании короче и тише: он сопровождает движение,
+   а не объявляет его. */
+.cal-fx:not(.boot) .cal-fx-sweep { width: 22%; left: -22%; }
+.cal-fx:not(.boot) .cal-fx-grid { animation-name: fxGridSoft; }
+@keyframes fxGridSoft { 0% { opacity: 0 } 25% { opacity: .22 } 100% { opacity: 0 } }

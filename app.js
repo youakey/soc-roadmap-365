@@ -1082,20 +1082,21 @@ function monthStat(y, m, today) {
 /* ─────────── уровень YEAR: 13 месяцев мелко ─────────── */
 function calYearHtml(today) {
   const months = calMonths();
-  return `<div class="cal-year">${months.map((mo, i) => {
+  return `<div class="cal-year">${months.map((mo, i) => { // eslint-disable-line
     const days = monthDays(mo.y, mo.m);
     const pad = dowMon(days[0]);
     const st = monthStat(mo.y, mo.m, today);
     const cur = days.some(d => d === today);
     const cells = Array(pad).fill('<i class="mini pad"></i>')
       .concat(days.map(d => `<i class="mini s-${calState(d, today)}"></i>`)).join('');
-    return `<button class="cal-mo${cur ? ' now' : ''}" data-mo="${i}" type="button">
+    return `<button class="cal-mo${cur ? ' now' : ''}" data-mo="${i}" type="button" style="--i:${i}">
       <span class="cal-mo-h">
         <b>${MON_S[mo.m]}</b><small class="mono">'${String(mo.y).slice(2)}</small>
         ${st.due ? `<span class="cal-mo-p mono">${st.pct}%</span>` : ''}
       </span>
       <span class="cal-mini">${cells}</span>
       <span class="cal-mo-bar"><i style="width:${st.pct}%"></i></span>
+      <span class="cal-mo-scan" aria-hidden="true"></span>
     </button>`;
   }).join('')}</div>`;
 }
@@ -1113,6 +1114,10 @@ function calMonthHtml(i, today) {
   const slots = Array(pad).fill(null).concat(days);
   while (slots.length % 7) slots.push(null);
   let rows = '';
+  /* Порядковый номер клетки уезжает в --i и задаёт задержку каскада
+     прямо в CSS. Считать задержки в JS через setTimeout нельзя: §3.10
+     и §12.3 требуют движение кадрами, а не таймерами. */
+  let k = 0;
   for (let r = 0; r < slots.length / 7; r++) {
     const row = slots.slice(r * 7, r * 7 + 7);
     const wn = row.map(weekOfDay).find(x => x != null) || null;
@@ -1120,18 +1125,22 @@ function calMonthHtml(i, today) {
        заливка спорила бы с цветом дней, а он здесь несёт данные (§12.4). */
     const sess = wn && META.sessionWeeks.includes(wn);
     const exam = wn ? own(META.examWeeks, String(wn), null) : null;
-    rows += `<div class="cal-row">
+    rows += `<div class="cal-row" style="--r:${r}">
       <span class="cal-wn mono">${wn
-        ? `<button type="button" class="${sess ? 'sess' : ''}${exam ? ' exam' : ''}"
+        ? `<button type="button" class="${sess ? 'sess' : ''}${exam ? ' exam' : ''}" style="--r:${r}"
              data-wk-open="${wn}" title="${exam ? esc(exam) : sess ? 'SESSION MODE' : 'W' + wn}">W${wn}</button>`
         : ''}</span>
-      ${row.map(day => {
-        if (!day) return `<i class="cal-c pad"></i>`;
+      ${row.map((day, c) => {
+        /* --r и --c дают волну по диагонали, --i — линейный каскад.
+           Разные переходы берут разную формулу: приближение идёт
+           диагональю от угла, листание — колонками по ходу движения. */
+        const v = `--i:${k++};--c:${c}`;
+        if (!day) return `<i class="cal-c pad" style="${v}"></i>`;
         const s = calState(day, today);
         const mins = Store.dayMinutes(day);
         return `<button type="button" class="cal-c s-${s}${day === today ? ' now' : ''}"
-          data-d="${day}" data-w="${wn || ''}">
-          <b>${+day.slice(8)}</b>${mins ? `<u class="mono">${mins}</u>` : ''}
+          style="${v}" data-d="${day}" data-w="${wn || ''}">
+          <span class="cal-c-in"><b>${+day.slice(8)}</b>${mins ? `<u class="mono">${mins}</u>` : ''}</span>
         </button>`;
       }).join('')}
     </div>`;
@@ -1180,10 +1189,29 @@ function calRepaint(anim) {
   if (!stage) return;
   const today = iso(new Date());
   stage.innerHTML = CAL_MODE === 'year' ? calYearHtml(today) : calMonthHtml(CAL_I, today);
-  if (anim && !REDUCED) {
-    const el = stage.firstElementChild;
-    if (el) { el.classList.add(anim); el.addEventListener('animationend', () => el.classList.remove(anim), { once: true }); }
+  if (!anim || REDUCED) return;
+
+  const el = stage.firstElementChild;
+  if (el) {
+    el.classList.add(anim);
+    el.addEventListener('animationend', e => {
+      if (e.target === el) el.classList.remove(anim);
+    }, { once: true });
   }
+
+  /* Развёртка: луч проходит по сцене и «проявляет» содержимое, поверх —
+     короткая сетка наводки. Оба слоя декоративные, живут ровно столько,
+     сколько идёт кадр, и снимаются сами. Держать их постоянно нельзя:
+     это два лишних композиторских слоя на каждой перерисовке (§3.10). */
+  const fx = document.createElement('span');
+  fx.className = 'cal-fx' + (anim === 'cal-in' ? ' boot' : '');
+  fx.setAttribute('aria-hidden', 'true');
+  fx.innerHTML = '<i class="cal-fx-sweep"></i><i class="cal-fx-grid"></i>';
+  stage.appendChild(fx);
+  fx.addEventListener('animationend', () => fx.remove(), { once: true });
+  /* Страховка: если кадр не проиграется (вкладка ушла в фон и анимации
+     не стартовали), слой всё равно уберётся. Иначе он останется висеть. */
+  setTimeout(() => fx.remove(), 1200);
 }
 
 /** Один слушатель на сцену. 364 клетки — это 364 замыкания, если вешать
