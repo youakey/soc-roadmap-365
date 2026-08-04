@@ -22,9 +22,15 @@ function fresh() {
     metrics: {},             // { "13": { hours, repos, thm, anki, efset, ... } }
     langs: {},               // { "1": { efset:"A2", anki: 310 } }
     freezes: {},             // { "2026-09-14": 1 } — замороженный пропуск → квартал
+    settings: { hidden: {} },// { hidden: { anki: true } } — скрытые разделы (§12.2)
     createdAt: null
   };
 }
+
+/* Разделы, которые вообще разрешено прятать (§12.2). Белый список, а не
+   свободный ключ: он же закрывает запись по ключу из данных — в объект
+   настроек не попадёт ничего, чего здесь нет. */
+const HIDEABLE = ['anki'];
 
 const Store = {
   d: null,
@@ -54,6 +60,26 @@ const Store = {
       return false;
     }
   },
+
+  /* ---------- настройки разделов (§12.2) ----------
+     Живут в payload, а не в браузере: человек прячет раздел один раз,
+     а не заново на каждом устройстве. Скрыть — не значит стереть:
+     данные раздела остаются нетронутыми, включил обратно — всё на месте. */
+  hidden(id) {
+    const s = this.d.settings;
+    const h = s && typeof s === 'object' ? own(s, 'hidden', null) : null;
+    return h && typeof h === 'object' ? own(h, id, false) === true : false;
+  },
+  setHidden(id, on) {
+    if (HIDEABLE.indexOf(id) === -1) return false;   // чужой ключ не пройдёт
+    if (!this.d.settings || typeof this.d.settings !== 'object') this.d.settings = { hidden: {} };
+    if (!this.d.settings.hidden || typeof this.d.settings.hidden !== 'object') this.d.settings.hidden = {};
+    if (on) this.d.settings.hidden[id] = true;
+    else delete this.d.settings.hidden[id];
+    this.save();
+    return true;
+  },
+  hideable() { return HIDEABLE.slice(); },
 
   /* ---------- недели ---------- */
   week(n) {

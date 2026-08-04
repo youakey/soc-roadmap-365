@@ -1208,3 +1208,27 @@ html { scrollbar-color: var(--line-hot) transparent; scrollbar-width: thin; }
   .view { display: block !important; }
   .reveal { opacity: 1; transform: none; }
 }
+
+/* ══════════ SETTINGS (§12.2) ══════════ */
+/* Блок рисуется дважды: своей вкладкой (её пункт есть только в сайдбаре)
+   и секцией внутри MORE. Видим ровно один — граница та же 880 px,
+   на которой таббар меняется на сайдбар. Держать порог в одном месте
+   надёжнее, чем сверять медиазапрос с matchMedia в скрипте. */
+.only-narrow { display: block; }
+@media (min-width: 880px) { .only-narrow { display: none; } }
+
+.set-row { display: flex; align-items: center; justify-content: space-between;
+  gap: 14px; padding: 12px 0; border-bottom: 1px solid var(--line); }
+.set-row:first-child { padding-top: 0; }
+.set-row:last-child { padding-bottom: 0; border-bottom: 0; }
+.set-name { display: inline-flex; align-items: center; gap: 10px;
+  font-family: var(--mono); font-size: 13px; font-weight: 650;
+  letter-spacing: .05em; color: var(--txt); }
+.set-name svg { width: 17px; height: 17px; flex: none; color: var(--txt-3); }
+
+/* Переключатель — та же кнопка, что везде, только с фиксированной
+   шириной: ON и OFF разной длины, и без неё строка дёргается при нажатии. */
+.btn.sw { min-width: 62px; justify-content: center; font-family: var(--mono);
+  letter-spacing: .08em; }
+.btn.sw.on { color: var(--cyan); border-color: color-mix(in srgb,var(--cyan) 42%,transparent);
+  background: var(--grad-soft); }

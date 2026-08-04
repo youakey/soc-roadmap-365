@@ -29,17 +29,25 @@ const ICONS = {
   bolt:   S('<path d="M13.5 3L6 13.5h5L10.5 21 18 10.5h-5z"/>'),
   rank:   S('<path d="M5 20.5h4v-7H5zM10 20.5h4V6h-4zM15 20.5h4v-10h-4z"/>'),
   file:   S('<path d="M14 3.5H7.5A1.5 1.5 0 0 0 6 5v14a1.5 1.5 0 0 0 1.5 1.5h9A1.5 1.5 0 0 0 18 19V7.5z"/><path d="M14 3.5V7.5H18"/><path d="M9 12.5h6M9 16h4"/>'),
-  anki:   S('<path d="M7 4.5h9.5A1.5 1.5 0 0 1 18 6v13.5H8.5A1.5 1.5 0 0 1 7 18z"/><path d="M4.5 7.5v11A1.5 1.5 0 0 0 6 20h1"/><path d="M10.5 9h4M10.5 12.5h5"/>')
+  anki:   S('<path d="M7 4.5h9.5A1.5 1.5 0 0 1 18 6v13.5H8.5A1.5 1.5 0 0 1 7 18z"/><path d="M4.5 7.5v11A1.5 1.5 0 0 0 6 20h1"/><path d="M10.5 9h4M10.5 12.5h5"/>'),
+  settings: S('<circle cx="12" cy="12" r="3"/><path d="M12 3.5v2.2M12 18.3v2.2M20.5 12h-2.2M5.7 12H3.5M18 6l-1.6 1.6M7.6 16.4L6 18M18 18l-1.6-1.6M7.6 7.6L6 6"/>')
 };
+/* `wide: true` — пункт живёт только в сайдбаре. Таббар и без того
+   семиколоночный; восьмая колонка на 360 px даёт 45 px на иконку
+   с подписью, то есть подпись обрезается. Поэтому на узком экране
+   SETTINGS показывается секцией внутри MORE (§12.2). */
 const NAV = [
-  { id: 'today',  label: 'TODAY'  },
-  { id: 'anki',   label: 'ANKI'   },
-  { id: 'year',   label: 'YEAR'   },
-  { id: 'weeks',  label: 'WEEKS'  },
-  { id: 'career', label: 'CAREER' },
-  { id: 'rank',   label: 'RANK'   },
-  { id: 'more',   label: 'MORE'   }
+  { id: 'today',    label: 'TODAY'    },
+  { id: 'anki',     label: 'ANKI'     },
+  { id: 'year',     label: 'YEAR'     },
+  { id: 'weeks',    label: 'WEEKS'    },
+  { id: 'career',   label: 'CAREER'   },
+  { id: 'rank',     label: 'RANK'     },
+  { id: 'more',     label: 'MORE'     },
+  { id: 'settings', label: 'SETTINGS', wide: true }
 ];
+/* Пункт виден, только если раздел не спрятан (§12.2). */
+const navItems = () => NAV.filter(n => !Store.hidden(n.id));
 
 /* Статусы недели хранятся по-русски и такими лежат в базе.
    Меняем только подпись — иначе поедут уже сохранённые данные. */
@@ -56,18 +64,19 @@ let WEEK_FILTER = 'all';
 /** Счётчик на пункте меню. Пока он не нужен — атрибута нет вовсе,
  *  иначе пустой кружок висит на виду и обесценивает сигнал. */
 function navBadge(id) {
-  if (id !== 'anki') return '';
+  if (id !== 'anki' || Store.hidden('anki')) return '';
   const n = Vocab.rawCount();
   return n ? `<i class="nav-badge">${n > 99 ? '99+' : n}</i>` : '';
 }
 function buildNav() {
-  $('#tabbar').innerHTML = NAV.map(n =>
+  const items = navItems();
+  $('#tabbar').innerHTML = items.filter(n => !n.wide).map(n =>
     `<button class="tab${n.id === VIEW ? ' on' : ''}" data-go="${n.id}">${own(ICONS, n.id, ICONS.shield)}${navBadge(n.id)}<span>${n.label}</span></button>`).join('');
-  $('#snav').innerHTML = NAV.map(n =>
+  $('#snav').innerHTML = items.map(n =>
     `<button class="${n.id === VIEW ? 'on' : ''}" data-go="${n.id}">${own(ICONS, n.id, ICONS.shield)}<span>${n.label}</span>${navBadge(n.id)}</button>`).join('');
   $$('#tabbar [data-go], #snav [data-go]').forEach(b => b.onclick = () => go(b.dataset.go));
 }
-const CRUMB = { today:'today', anki:'anki', year:'year', weeks:'weeks', career:'career', rank:'rank', more:'more' };
+const CRUMB = { today:'today', anki:'anki', year:'year', weeks:'weeks', career:'career', rank:'rank', more:'more', settings:'settings' };
 function paintCrumbs() {
   const el = $('#crumbs');
   if (!el) return;
@@ -78,6 +87,11 @@ function paintCrumbs() {
 }
 
 function go(id) {
+  /* Скрытый раздел недостижим и по прямому вызову, не только из меню
+     (§12.2). Молча уводим на TODAY: сообщать «раздел выключен» —
+     это объяснение устройства продукта, а ему в интерфейсе не место
+     (§3.8). Человек сам его и выключил. */
+  if (Store.hidden(id)) id = 'today';
   VIEW = id;
   $$('.view').forEach(v => v.classList.toggle('on', v.id === 'v-' + id));
   $$('#tabbar [data-go], #snav [data-go]').forEach(b => b.classList.toggle('on', b.dataset.go === id));
@@ -164,7 +178,11 @@ function buzz(ms) { try { !REDUCED && navigator.vibrate && navigator.vibrate(ms 
 /* ══════════════════ RENDER ══════════════════ */
 function renderAll() {
   buildNav();
-  ['today','anki','year','weeks','career','rank','more'].forEach(render);
+  /* Скрытые НЕ отфильтровываем здесь: пропустить вызов и вычистить
+     разметку — разные вещи. Первая версия фильтровала список, и старый
+     DOM скрытого раздела оставался висеть — поймал тест. Решение о том,
+     что делать со скрытым, принимает один render() (§12.2). */
+  ['today','anki','year','weeks','career','rank','more','settings'].forEach(render);
   const cw = currentWeek();
   $('#topWeek').textContent = isBeforeStart() ? 'до старта' : 'W' + cw;
   paintCrumbs();
@@ -175,8 +193,10 @@ function renderAll() {
      <div class="tiny dim mt">${t.hoursFact} из ${t.hoursPlan} ч · ${t.closed}/52 недель</div>`;
 }
 function render(id) {
+  if (Store.hidden(id)) { const b = $('#v-' + id); if (b) b.innerHTML = ''; return; }
   const fn = own({ today: rToday, anki: rAnki, year: rYear, weeks: rWeeks,
-                   career: rCareer, rank: rRank, more: rMore }, id, null);
+                   career: rCareer, rank: rRank, more: rMore,
+                   settings: rSettings }, id, null);
   if (!fn) return;
   fn();
   observeReveals($('#v-' + id));
@@ -228,16 +248,18 @@ function rToday() {
   /* Словарь. Счётчик сырых слов и есть напоминание, что пора сесть
      за оформление, — поэтому он висит здесь, рядом с чеклистом,
      а не внутри своей вкладки. */
-  const vRaw = Vocab.rawCount(), vReady = Vocab.count(null, 'ready');
-  h += `<div class="card">
-    <div class="card-t">
-      <div><h3>ANKI</h3><div class="tiny dim mono">raw ${vRaw} · ready ${vReady}</div></div>
-      <span class="pill${vRaw ? ' warn' : ' ok'}">${vRaw}</span>
-    </div>
-    <div class="row wrap" style="gap:8px">
-      <button class="btn sm${vRaw ? ' primary' : ''}" data-goto="anki">OPEN</button>
-    </div>
-  </div>`;
+  if (!Store.hidden('anki')) {
+    const vRaw = Vocab.rawCount(), vReady = Vocab.count(null, 'ready');
+    h += `<div class="card">
+      <div class="card-t">
+        <div><h3>ANKI</h3><div class="tiny dim mono">raw ${vRaw} · ready ${vReady}</div></div>
+        <span class="pill${vRaw ? ' warn' : ' ok'}">${vRaw}</span>
+      </div>
+      <div class="row wrap" style="gap:8px">
+        <button class="btn sm${vRaw ? ' primary' : ''}" data-goto="anki">OPEN</button>
+      </div>
+    </div>`;
+  }
 
   /* таймер */
   h += `<div class="card">
@@ -1349,6 +1371,47 @@ function addAppPrompt() {
 }
 
 /* ─────────── ЕЩЁ ─────────── */
+/* ─────────── НАСТРОЙКИ (§12.2) ───────────
+   Разметка и обвязка разведены, потому что блок рисуется в двух местах:
+   своей вкладкой на десктопе и секцией внутри MORE на телефоне (таббар
+   уже семиколоночный). Видим всегда ровно один — второй режет CSS.
+   Одна разметка на оба места: разойдутся — разъедется и поведение. */
+const SECTION_NAME = { anki: 'ANKI' };
+
+function settingsHtml() {
+  const rows = Store.hideable().map(id => {
+    const off = Store.hidden(id);
+    return `<div class="set-row">
+      <span class="set-name">${own(ICONS, id, ICONS.shield)}${esc(own(SECTION_NAME, id, id))}</span>
+      <button class="btn sm sw${off ? '' : ' on'}" data-hide="${id}" role="switch"
+              aria-checked="${off ? 'false' : 'true'}">${off ? 'OFF' : 'ON'}</button>
+    </div>`;
+  }).join('');
+  return `<div class="section-h"><h2>SECTIONS</h2><span class="rule"></span></div>
+    <div class="card">${rows}</div>`;
+}
+
+/** Обвязка навешивается на переданный корень, а не на документ:
+ *  иначе копия из MORE и копия из вкладки перехватят кнопки друг друга. */
+function wireSettings(root) {
+  if (!root) return;
+  root.querySelectorAll('[data-hide]').forEach(b => b.onclick = () => {
+    const id = b.dataset.hide;
+    if (!Store.setHidden(id, !Store.hidden(id))) return;
+    Sync.schedule();
+    /* Уходим с раздела, если стояли на нём: go() и сам бы увёл,
+       но перерисовать надо всё — меню, TODAY и MORE тоже меняются. */
+    if (Store.hidden(VIEW)) go('today');
+    renderAll();
+    buzz(10);
+  });
+}
+
+function rSettings() {
+  $('#v-settings').innerHTML = settingsHtml();
+  wireSettings($('#v-settings'));
+}
+
 function rMore() {
   let h = `<div class="section-h"><h2>DAILY BLUEPRINT</h2><span class="rule"></span></div>
   <div class="card"><table class="t"><thead><tr><th>Блок</th><th style="width:52px">Мин</th></tr></thead><tbody>
@@ -1372,9 +1435,13 @@ function rMore() {
      накопительно к концу квартала — цели в LANGS тоже накопительные
      (300 / 700 / 1100 / 1400). Старое ручное значение остаётся видимым,
      пока своих выгрузок нет: это история до появления раздела. */
+  /* Раздел ANKI выключен — считать Anki EN не из чего, поэтому поле
+     возвращается к ручному вводу, каким было до §10 (§12.2). */
+  const ankiOff = Store.hidden('anki');
   LANGS.forEach(l => {
     const s = Store.lang(l.q);
-    const shown = Vocab.exportedByQuarter(l.q, 'en') || (Number(s.anki) || 0);
+    const manual = Number(s.anki) || 0;
+    const shown = ankiOff ? manual : (Vocab.exportedByQuarter(l.q, 'en') || manual);
     h += `<div class="card wk q${l.q}">
       <div class="card-t"><h3>${QUARTERS[l.q].code} · English → ${l.target}</h3><span class="pill q${l.q}">${QUARTERS[l.q].range}</span></div>
       <p class="sm muted" style="margin:0 0 8px">${esc(l.en)}</p>
@@ -1382,12 +1449,16 @@ function rMore() {
       <div class="grid g2">
         <label class="fld" style="margin:0"><span>EF SET</span>
           <input type="text" value="${esc(s.efset)}" data-lang="${l.q}" data-lk="efset" placeholder="${l.target}"></label>
-        <div class="fld" style="margin:0"><span>Anki EN (цель ${l.anki})</span>
-          <div class="row" style="gap:8px;align-items:baseline">
-            <b class="mono" style="font-size:19px">${shown}</b>
-            <span class="pill${shown >= l.anki ? ' ok' : ''}">${Math.min(100, Math.round(shown / l.anki * 100))}%</span>
-          </div>
-        </div>
+        ${ankiOff
+          ? `<label class="fld" style="margin:0"><span>Anki EN (цель ${l.anki})</span>
+              <input type="number" min="0" inputmode="numeric" value="${manual || ''}"
+                     data-lang="${l.q}" data-lk="anki" placeholder="0"></label>`
+          : `<div class="fld" style="margin:0"><span>Anki EN (цель ${l.anki})</span>
+              <div class="row" style="gap:8px;align-items:baseline">
+                <b class="mono" style="font-size:19px">${shown}</b>
+                <span class="pill${shown >= l.anki ? ' ok' : ''}">${Math.min(100, Math.round(shown / l.anki * 100))}%</span>
+              </div>
+            </div>`}
       </div></div>`;
   });
 
@@ -1482,10 +1553,17 @@ function rMore() {
     <p class="tiny dim mt" style="margin-bottom:0">«Сбросить всё» стирает и локальную копию, и облачную — при следующей отправке пустое состояние уедет на сервер.</p>
   </div>`;
 
+  /* SETTINGS внутри MORE — только там, где нет сайдбара (§12.2).
+     Прячет CSS по той же границе 880 px, что переключает таббар
+     и сайдбар: держать порог в одном месте надёжнее, чем сверять
+     медиазапрос с matchMedia в скрипте. */
+  h += `<div class="only-narrow" id="moreSettings">${settingsHtml()}</div>`;
+
   h += `<p class="tiny dim center mt2">SOC Roadmap 365 · старт ${fmtRU(META.start)} · финиш ${fmtRU(META.end)}<br>
     631 технический час · 52 недели · 224 задачи</p>`;
 
   $('#v-more').innerHTML = h;
+  wireSettings($('#moreSettings'));
 
   $$('[data-lang]').forEach(i => i.onchange = () => {
     Store.setLang(+i.dataset.lang, i.dataset.lk, i.value); Sync.schedule(); toast('Сохранено');
@@ -1711,6 +1789,7 @@ Auth.onleave = () => {
    иначе он перехватит пробел у поля захвата и у чеклиста. */
 window.addEventListener('keydown', e => {
   if (!Drill.on || VIEW !== 'anki') return;
+  if (Store.hidden('anki')) return;   // раздел выключен — слушатель молчит (§12.2)
   if (!$('#app').classList.contains('on')) return;
   const t = e.target;
   if (t && /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName)) return;

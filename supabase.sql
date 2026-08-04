@@ -214,8 +214,19 @@ insert into public.roadmaps
   (id, title, subtitle, accent, icon, start_date, end_date, total_hours, total_weeks, is_public, sort)
 values
   ('cyber', 'SOC Roadmap 365', 'Junior SOC Analyst за 52 недели',
-   '#22e3d4', 'shield', '2026-08-03', '2027-08-01', 631, 52, true, 0)
+   '#22e3d4', 'shield', '2026-08-10', '2027-08-08', 631, 52, true, 0)
 on conflict (id) do nothing;
+
+-- Даты трека обязаны совпадать с META в data.js (§12.1). Строка сидится
+-- один раз, и `do nothing` выше её уже НЕ перезапишет — поэтому границы
+-- обновляются явно. Это не про красоту: public_stats_guard берёт из
+-- start_date потолок streak, и разошедшаяся дата тихо режет рейтинг.
+-- Идемпотентно: повторный запуск ничего не меняет.
+update public.roadmaps
+   set start_date = '2026-08-10',
+       end_date   = '2027-08-08'
+ where id = 'cyber'
+   and (start_date, end_date) is distinct from (date '2026-08-10', date '2027-08-08');
 
 
 -- ─────────────── 9. ГРАНИЦЫ ДАННЫХ (аудит безопасности) ───────────────
