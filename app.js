@@ -30,7 +30,8 @@ const ICONS = {
   rank:   S('<path d="M5 20.5h4v-7H5zM10 20.5h4V6h-4zM15 20.5h4v-10h-4z"/>'),
   file:   S('<path d="M14 3.5H7.5A1.5 1.5 0 0 0 6 5v14a1.5 1.5 0 0 0 1.5 1.5h9A1.5 1.5 0 0 0 18 19V7.5z"/><path d="M14 3.5V7.5H18"/><path d="M9 12.5h6M9 16h4"/>'),
   anki:   S('<path d="M7 4.5h9.5A1.5 1.5 0 0 1 18 6v13.5H8.5A1.5 1.5 0 0 1 7 18z"/><path d="M4.5 7.5v11A1.5 1.5 0 0 0 6 20h1"/><path d="M10.5 9h4M10.5 12.5h5"/>'),
-  settings: S('<circle cx="12" cy="12" r="3"/><path d="M12 3.5v2.2M12 18.3v2.2M20.5 12h-2.2M5.7 12H3.5M18 6l-1.6 1.6M7.6 16.4L6 18M18 18l-1.6-1.6M7.6 7.6L6 6"/>')
+  settings: S('<circle cx="12" cy="12" r="3"/><path d="M12 3.5v2.2M12 18.3v2.2M20.5 12h-2.2M5.7 12H3.5M18 6l-1.6 1.6M7.6 16.4L6 18M18 18l-1.6-1.6M7.6 7.6L6 6"/>'),
+  sound:  S('<path d="M4.5 9.5h3L12 5.5v13L7.5 14.5h-3z"/><path d="M15.5 9.5a3.8 3.8 0 0 1 0 5M18.2 7a7.2 7.2 0 0 1 0 10"/>')
 };
 /* `wide: true` — пункт живёт только в сайдбаре. Таббар и без того
    семиколоночный; восьмая колонка на 360 px даёт 45 px на иконку
@@ -174,6 +175,43 @@ function decodeHeadings(root) {
 
 /** Тактильный отклик там, где он уместен. */
 function buzz(ms) { try { !REDUCED && navigator.vibrate && navigator.vibrate(ms || 12); } catch (e) {} }
+
+/* ─── звук (§12.5) ───
+   REDUCED здесь намеренно НЕ участвует: движение и звук — разные оси.
+   Человек может не выносить анимацию и спокойно относиться к писку,
+   и наоборот. У звука свой флаг, и он живёт в настройках аккаунта.
+
+   Разблокировка. AudioContext на iOS рождается suspended, и resume()
+   обязан быть вызван синхронно внутри настоящего нажатия. Слушатель
+   висит на всём документе в фазе перехвата: разбирать, какая именно
+   кнопка нажата, бессмысленно — годится любая. Пока звук выключен,
+   arm() выходит первой строкой и контекст не создаётся вовсе.
+   Снимать слушатель нельзя: iOS роняет контекст обратно в suspended
+   после ухода из вкладки, и разблокировать его надо будет заново. */
+window.addEventListener('pointerdown', () => Sound.arm(), true);
+window.addEventListener('keydown', () => Sound.arm(), true);
+
+/* Достижения нигде не «выдаются» — они пересчитываются из прогресса
+   каждый раз заново (Store.achievements()). Значит момент получения
+   можно поймать только сравнением с прошлым состоянием.
+
+   Слепок снимается ПОСЛЕ загрузки прогресса, иначе первый же вызов
+   объявит новыми все шесть достижений. И сравнение зовётся только
+   из обработчиков, которые меняют данные, — не из renderAll(). */
+let ACH_SEEN = null;
+function achSnapshot() {
+  ACH_SEEN = Store.achievements().filter(a => a.got).map(a => a.id);
+}
+/** Появилось ли новое достижение с прошлой проверки. */
+function achCheck() {
+  if (!ACH_SEEN) { achSnapshot(); return false; }
+  const now = Store.achievements().filter(a => a.got).map(a => a.id);
+  const fresh = now.filter(id => ACH_SEEN.indexOf(id) === -1);
+  ACH_SEEN = now;
+  if (!fresh.length) return false;
+  Sound.ach();
+  return true;
+}
 
 /* ══════════════════ RENDER ══════════════════ */
 function renderAll() {
@@ -339,7 +377,14 @@ function rToday() {
 
   $$('[data-block]').forEach(el => el.onclick = () => {
     const on = Store.toggleBlock(today, el.dataset.block);
-    if (on) { el.classList.add('pulse'); buzz(14); }
+    if (on) {
+      el.classList.add('pulse'); buzz(14);
+      /* Высота подтверждения растёт вместе с долей закрытого дня:
+         пятая галочка звучит выше первой (§12.5). Считаем ПОСЛЕ
+         переключения — вес учитывает только что поставленную. */
+      const doneNow = blocks.reduce((s, b) => s + ((Store.d.days[today] || {})[b.id] ? 1 : 0), 0);
+      Sound.ok(blocks.length ? doneNow / blocks.length : 0.5);
+    }
     Sync.schedule();
     rToday(); renderAll();
   });
@@ -520,7 +565,7 @@ function drillAct(act) {
      pos уходил за total, ok рос на карточках, которых уже нет. */
   if (Drill.finished || !Drill.card()) return;
 
-  if (act === 'flip') { Drill.flip(); rDrill(); buzz(8); return; }
+  if (act === 'flip') { Drill.flip(); rDrill(); buzz(8); Sound.flip(); return; }
 
   if (act === 'del') {
     const c = Drill.card();
@@ -544,6 +589,10 @@ function drillAct(act) {
     rDrill();
   };
   buzz(act === 'know' ? 12 : 18);
+  /* Направление здесь несёт весь смысл: рука на стрелках, глаза
+     на слове. Звучит сразу, а не после ухода карточки, — отклик
+     на нажатие, а не на анимацию. */
+  Sound.grade(act === 'know');
   if (REDUCED || !el) { go(); return; }
   el.classList.add(act === 'know' ? 'out-ok' : 'out-ag');
   setTimeout(go, 240);
@@ -848,8 +897,15 @@ function tLeft() {
 }
 function tRunning() { return !!T.endsAt && T.left == null; }
 
+/* Последняя озвученная секунда обратного отсчёта. tPaint() крутится
+   дважды в секунду и вдобавок зовётся при каждой отрисовке TODAY —
+   без этой отсечки один и тот же тик прозвучал бы несколько раз.
+   Сбрасывается везде, где отсчёт начинается заново. */
+let T_BEEP = null;
+
 function timerStart(block, min, name) {
   T = { block, name, total: min * 60, endsAt: Date.now() + min * 60000, left: null, done: false };
+  T_BEEP = null;
   tSave(); tLoop(); tPaint(); buzz(10);
 }
 function timerPause() {
@@ -894,6 +950,7 @@ function timerAdd(min) {
     T.left = left;
   }
 
+  T_BEEP = null;                                // отсчёт сдвинулся — тики заново
   tSave(); tLoop(); tPaint(); buzz(8);
   const box = $('#tBox');
   if (box) { box.classList.remove('bump'); void box.offsetWidth; box.classList.add('bump'); }
@@ -902,6 +959,7 @@ function timerAdd(min) {
 
 function timerReset() {
   T = { block: null, name: '', total: 0, endsAt: null, left: null, done: false };
+  T_BEEP = null;
   tSave(); tLoop(); tPaint();
   document.title = 'SOC Roadmap 365';
   if (VIEW === 'today') rToday();
@@ -924,7 +982,16 @@ function timerFinish(silent) {
       toast(name + ' — время вышло');
     }
   }
-  if (!silent) { try { navigator.vibrate && navigator.vibrate([200, 90, 200]); } catch (e) {} }
+  /* Главный случай всей §12.5: человек смотрит в терминал, а не
+     на вкладку. Под `silent` идёт только восстановление после
+     перезагрузки — там блок доиграл, пока страницы не было, и
+     звук на загрузке никто не заказывал. Заодно это снимает
+     вопрос с жестом: на восстановлении его и не было. */
+  if (!silent) {
+    try { navigator.vibrate && navigator.vibrate([200, 90, 200]); } catch (e) {}
+    Sound.done();
+  }
+  T_BEEP = null;
   renderAll();
 }
 
@@ -958,6 +1025,18 @@ function tPaint() {
     box.classList.toggle('run', run);
     box.classList.toggle('done', !!T.done);
     box.classList.toggle('warn', run && left <= 10);        // последние секунды — янтарь
+  }
+
+  /* Тик последних десяти секунд (§12.5), в пару к янтарю выше.
+     Высота растёт по мере убывания остатка — считает её Sound.
+     Здесь только отсечка повтора: tPaint зовётся дважды в секунду
+     и ещё раз при каждой отрисовке TODAY, а тик положен один
+     на секунду. Условие на `run` обязательно: на паузе и после
+     финиша отсчёта нет, а `left` остаётся маленьким. */
+  if (run && left > 0 && left <= 10) {
+    if (T_BEEP !== left) { T_BEEP = left; Sound.tick(left); }
+  } else if (!run) {
+    T_BEEP = null;
   }
 
   // кольцо прогресса и точка на его конце
@@ -1499,6 +1578,14 @@ function bindWeekCard(root) {
     const n = +el.closest('[data-wk]').dataset.wk;
     const added = Store.toggleTask(n, +el.dataset.task);
     el.classList.toggle('on'); if (added) buzz(10);
+    /* Значимость — доля закрытых задач недели: последняя задача
+       звучит выше первой (§12.5). Достижения `pcap` и `rule`
+       выдаются именно отсюда, поэтому здесь же и проверка. */
+    if (added) {
+      const wk = WEEKS[n - 1], done = Store.week(n).tasks.length;
+      Sound.ok(wk && wk.tasks.length ? done / wk.tasks.length : 0.5);
+    }
+    achCheck();
     Sync.schedule();
     const card = el.closest('[data-wk]');
     const w = WEEKS[n - 1], s = Store.week(n);
@@ -1509,10 +1596,18 @@ function bindWeekCard(root) {
   });
   $$('[data-f-hours]', root).forEach(i => i.onchange = () => {
     Store.setWeek(+i.getAttribute('data-f-hours'), { hours: i.value === '' ? null : Number(i.value) });
+    achCheck();                                   // отсюда приходит «100 часов»
     Sync.schedule(); toast('Сохранено'); renderAll();
   });
   $$('[data-f-status]', root).forEach(i => i.onchange = () => {
     Store.setWeek(+i.getAttribute('data-f-status'), { status: i.value });
+    /* Закрытая неделя — событие крупнее галочки и мельче достижения,
+       у него своя ступень в палитре (§12.5). Прочие статусы молчат:
+       «в работе» и «перенесена» — это пометки, а не вехи.
+       Порядок важен: если неделя закрыла квартал, достижение
+       прозвучит следом и перекроет — потому и проверяется вторым. */
+    if (i.value === 'Закрыта') Sound.week();
+    achCheck();
     Sync.schedule(); toast('Сохранено'); renderAll();
   });
   $$('[data-f-rating]', root).forEach(i => i.onchange = () => {
@@ -1640,6 +1735,7 @@ function rCareer() {
   $$('[data-repo]').forEach(b => b.onclick = () => {
     const id = +b.dataset.repo, k = b.dataset.rk;
     Store.setRepo(id, { [k]: Store.repo(id)[k] ? 0 : 1 });
+    achCheck();                                   // «первый репозиторий»
     Sync.schedule(); buzz(10); rCareer(); renderAll();
   });
   $$('[data-repo-url]').forEach(i => i.onchange = () => {
@@ -1685,6 +1781,7 @@ function addAppPrompt() {
   const cat = prompt('Категория:\n' + APP_CATEGORIES.join(' / '), APP_CATEGORIES[0]) || APP_CATEGORIES[0];
   const note = prompt('Заметка (необязательно):') || '';
   Store.addApp({ company, role, cat, note, status: 'Отправлен' });
+  achCheck();                                     // «первый отклик отправлен»
   Sync.schedule(); rCareer(); renderAll(); toast('Отклик добавлен');
 }
 
@@ -1705,8 +1802,35 @@ function settingsHtml() {
               aria-checked="${off ? 'false' : 'true'}">${off ? 'OFF' : 'ON'}</button>
     </div>`;
   }).join('');
+
+  /* Звук (§12.5). Отдельной секцией, а не строкой среди разделов:
+     это не «что показывать», а «как отвечать». Подписи по §3.8 —
+     SOUND, ON/OFF, VOL. Объяснять, что звук синтезируется, не нужно:
+     из интерфейса объяснения устройства продукта убраны (§3.8).
+
+     Регулятор один и в разметке живёт всегда, но при выключенном
+     звуке отключён: серый неподвижный ползунок честнее исчезнувшего —
+     видно, что настройка есть и чего она ждёт. */
+  const sOn = Store.soundOn();
+  const vol = Math.round(Store.soundVol() * 100);
+  const sound = `<div class="set-row">
+      <span class="set-name">${ICONS.sound}SOUND</span>
+      <button class="btn sm sw${sOn ? ' on' : ''}" data-sound role="switch"
+              aria-checked="${sOn ? 'true' : 'false'}">${sOn ? 'ON' : 'OFF'}</button>
+    </div>
+    <div class="set-row${sOn ? '' : ' off'}">
+      <span class="set-name">VOL</span>
+      <span class="set-vol">
+        <input type="range" data-vol min="0" max="100" step="5" value="${vol}"
+               aria-label="VOL"${sOn ? '' : ' disabled'}>
+        <b class="mono tiny" data-volnum>${vol}</b>
+      </span>
+    </div>`;
+
   return `<div class="section-h"><h2>SECTIONS</h2><span class="rule"></span></div>
-    <div class="card">${rows}</div>`;
+    <div class="card">${rows}</div>
+    <div class="section-h"><h2>SOUND</h2><span class="rule"></span></div>
+    <div class="card">${sound}</div>`;
 }
 
 /** Обвязка навешивается на переданный корень, а не на документ:
@@ -1723,6 +1847,40 @@ function wireSettings(root) {
     renderAll();
     buzz(10);
   });
+
+  /* Переключатель звука. Нажатие — настоящий жест, поэтому здесь же
+     и единственное разрешённое место для создания контекста помимо
+     общего слушателя: Sound.preview() внутри зовёт arm().
+
+     Проба обязательна. Включатель, который ничего не издаёт, читается
+     как «звук не работает», и человек идёт искать поломку там, где
+     её нет. */
+  const sb = root.querySelector('[data-sound]');
+  if (sb) sb.onclick = () => {
+    const on = !Store.soundOn();
+    Store.setSoundOn(on);
+    Sync.schedule();
+    if (on) Sound.preview(0.55);
+    /* Перерисовываем ОБЕ копии блока: одна во вкладке, вторая
+       внутри MORE. Видим всегда одну, но разъехаться они не должны
+       (§12.2-bis). renderAll() перебирает разделы целиком. */
+    renderAll();
+    buzz(10);
+  };
+
+  /* Громкость. `input` — на каждое движение ползунка, `change` —
+     на отпускание. Пробу играем только на `change`: на `input`
+     это была бы очередь из двадцати писков за один протяг. */
+  const vr = root.querySelector('[data-vol]');
+  if (vr) {
+    const num = root.querySelector('[data-volnum]');
+    vr.oninput = () => { if (num) num.textContent = vr.value; };
+    vr.onchange = () => {
+      Store.setSoundVol(Number(vr.value) / 100);
+      Sync.schedule();
+      Sound.preview(0.55);
+    };
+  }
 }
 
 function rSettings() {
@@ -2081,9 +2239,20 @@ async function openApp(note) {
      слова уже лежат локально и уедут при следующей отправке. */
   await Vocab.init().catch(e => console.warn('vocab init', e));
   tRestore();
+  /* Слепок достижений снимается ПОСЛЕ загрузки прогресса и до первой
+     отрисовки. Раньше — и все шесть окажутся «новыми» при первом же
+     нажатии; позже — и достижение, полученное между загрузкой
+     и снимком, потеряется (§12.5). */
+  achSnapshot();
   renderAll();
   decodeHeadings($('#v-' + VIEW));
   if (note) toast(note);
+
+  /* «Канал открыт» — один раз за сессию. На восстановленной сессии
+     не прозвучит вовсе: жеста не было, контекста нет, Sound молчит
+     по построению. Это не изъян, а ровно то поведение, которого
+     требует §12.5: звука при загрузке страницы быть не должно. */
+  Sound.login();
 }
 
 Auth.onenter = async (note) => {
@@ -2099,6 +2268,10 @@ Auth.onleave = () => {
   Store.reset();                  // локальный кеш чужому не достаётся
   Vocab.wipe();                   // словарь тем более: это карта незнания
   Drill.stop();                   // и незакрытый проход по чужим словам
+  ACH_SEEN = null;                // слепок чужих достижений тоже не наш
+  /* Контекст не закрываем: он тяжёлый, один на страницу (§12.5),
+     и следующий вход переиспользует его. Звучать он не будет —
+     Store.reset() вернул настройки к умолчанию, где звук выключен. */
 };
 
 /* Клавиатура тренажёра. Раскладка как в настольной Anki: пробел

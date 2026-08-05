@@ -92,11 +92,11 @@ jobs:
             eslint@9.13.0 eslint-plugin-security@3.0.1
           # Сначала прогон с показом предупреждений — он нужен как отчёт в логе.
           npx eslint --config eslint.config.mjs \
-            app.js auth.js store.js sync.js vocab.js zero.js config.js security.js data.js data-weeks.js tools/*.mjs \
+            app.js auth.js store.js sync.js vocab.js zero.js sound.js config.js security.js data.js data-weeks.js tools/*.mjs \
             --max-warnings 400 || true
           # Затем прогон, который валит сборку на ошибках (правила из блока error).
           npx eslint --config eslint.config.mjs \
-            app.js auth.js store.js sync.js vocab.js zero.js config.js security.js tools/*.mjs
+            app.js auth.js store.js sync.js vocab.js zero.js sound.js config.js security.js tools/*.mjs
 
       # ── 6. Таббар не отклеится снова ────────────────────────
       # Баг кусал дважды: transform на #app делает его containing block
@@ -127,3 +127,24 @@ jobs:
           done
           grep -qE '^permissions:' .github/workflows/security.yml || { echo "::error::нет явного блока permissions"; exit 1; }
           echo "Права описаны явно."
+
+      # ── 8. Звук не заводится при загрузке страницы ──────────
+      # AudioContext, созданный вне жеста, на iOS остаётся suspended
+      # навсегда — и молча: ни одной ошибки в консоли. Проверка
+      # дешёвая и ловит ровно ту правку, которой это ломается:
+      # любой вызов Sound.* внутри самого sound.js. Файл только
+      # объявляет объект и обращается к себе через this — значит
+      # имени Sound там нет вовсе, и появление его означает, что
+      # файл начал что-то делать сам по себе.
+      - name: Звук не стартует на загрузке
+        run: |
+          set -uo pipefail
+          if grep -nE '^[[:space:]]*Sound\.' sound.js; then
+            echo "::error::sound.js что-то выполняет при загрузке. Контекст должен рождаться только внутри жеста, см. §12.5 PROJECT.md."
+            exit 1
+          fi
+          if grep -nE 'new[[:space:]]+(window\.)?(webkit)?AudioContext' app.js; then
+            echo "::error::AudioContext создаётся мимо sound.js. Контекст на страницу ровно один, см. §12.5."
+            exit 1
+          fi
+          echo "Звук ждёт жеста."

@@ -1241,6 +1241,31 @@ html { scrollbar-color: var(--line-hot) transparent; scrollbar-width: thin; }
 .btn.sw.on { color: var(--cyan); border-color: color-mix(in srgb,var(--cyan) 42%,transparent);
   background: var(--grad-soft); }
 
+/* ── Регулятор громкости (§12.5) ──
+   Один ползунок, без «настроек звука» на пол-экрана. При выключенном
+   звуке строка гаснет, но остаётся: исчезнувшая настройка выглядит как
+   пропавшая возможность, а погашенная — как ждущая своего часа.
+   Никакого filter и backdrop-filter: §3.5-bis, и вдобавок это карточка
+   с прокруткой на iOS. */
+.set-row.off { opacity: .45; }
+.set-vol { display: inline-flex; align-items: center; gap: 10px; }
+.set-vol b { min-width: 26px; text-align: right; color: var(--txt-3); }
+
+input[type=range] { -webkit-appearance: none; appearance: none;
+  width: 128px; height: 20px; background: transparent; cursor: pointer;
+  padding: 0; border: 0; }
+input[type=range]:disabled { cursor: default; }
+input[type=range]::-webkit-slider-runnable-track { height: 4px; border-radius: 2px;
+  background: linear-gradient(90deg, var(--cyan), color-mix(in srgb,var(--cyan) 22%,transparent)); }
+input[type=range]::-moz-range-track { height: 4px; border-radius: 2px;
+  background: linear-gradient(90deg, var(--cyan), color-mix(in srgb,var(--cyan) 22%,transparent)); }
+input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; appearance: none;
+  width: 13px; height: 13px; margin-top: -4.5px; border-radius: 50%;
+  background: var(--elevated); border: 2px solid var(--cyan); }
+input[type=range]::-moz-range-thumb { width: 13px; height: 13px; border-radius: 50%;
+  background: var(--elevated); border: 2px solid var(--cyan); }
+input[type=range]:focus-visible { outline: 2px solid var(--cyan); outline-offset: 3px; }
+
 /* ══════════ КАЛЕНДАРЬ ПРОГРЕССА (§12.4) ══════════
    Голограмма набирается свечением, градиентами и сканлайнами — тем же
    языком, что фон и циферблат таймера. Ни blur(), ни backdrop-filter:

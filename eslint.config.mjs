@@ -21,7 +21,11 @@ export default [
         setInterval: 'readonly', clearInterval: 'readonly',
         requestAnimationFrame: 'readonly', matchMedia: 'readonly',
         alert: 'readonly', confirm: 'readonly', Blob: 'readonly', URL: 'readonly',
-        URLSearchParams: 'readonly', supabase: 'readonly', process: 'readonly'
+        URLSearchParams: 'readonly', supabase: 'readonly', process: 'readonly',
+        /* Web Audio (§12.5). Префиксный webkitAudioContext нужен ради
+           старых Safari: там весь звук держится только на нём. */
+        AudioContext: 'readonly', webkitAudioContext: 'readonly',
+        performance: 'readonly'
       }
     },
     plugins: { security },

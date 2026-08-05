@@ -64,7 +64,11 @@ const Sync = {
         .maybeSingle();
       if (error) throw error;
       if (data && data.payload) {
-        Store.d = mergeState(Store.d, data.payload);
+        /* Третий аргумент — «здесь ещё ничего не было». Только на
+           чистом устройстве настройки берутся из облака; на обжитом
+           побеждает местное состояние, иначе выключенный полчаса назад
+           звук вернулся бы вместе с первой же синхронизацией. */
+        Store.d = mergeState(Store.d, data.payload, !Store.cached);
         Store.d.ownerId = this.user.id;
         Store.save();
       }
@@ -144,9 +148,26 @@ const Sync = {
 };
 
 /* ── слияние двух состояний ───────────────────────────────── */
-function mergeState(local, remote) {
+function mergeState(local, remote, freshDevice) {
   if (!remote) return local;
   const out = Object.assign({}, local);
+
+  /* Настройки (§12.2, §12.5). Раньше этой строки здесь не было вовсе,
+     и `out.settings` молча оставался локальным всегда: настройка
+     уезжала в облако и не возвращалась оттуда никогда. Снаружи это
+     выглядело безобидно, потому что на своём устройстве кеш и облако
+     совпадают, — тот же почерк, что у §12.1-ter.
+
+     Правило: на чистом устройстве побеждает облако (иначе «следует
+     за аккаунтом» — пустые слова, fresh() затирает чужой выбор
+     умолчаниями), на обжитом — местное (иначе первая синхронизация
+     возвращала бы только что выключенный звук). Отличить одно
+     от другого по самому объекту нельзя: у настроек нет «пустого»
+     состояния, поэтому признак приходит снаружи, из Store.cached. */
+  if (freshDevice && remote.settings && typeof remote.settings === 'object'
+      && !Array.isArray(remote.settings)) {
+    out.settings = remote.settings;
+  }
 
   // недели: объединяем по номеру, отметки задач — объединением множеств
   out.weeks = Object.assign({}, remote.weeks || {}, local.weeks || {});

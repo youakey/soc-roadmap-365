@@ -27,8 +27,13 @@ function fresh() {
        (§12.2-bis). Включается одним переключателем в SETTINGS, данные
        словаря при этом никуда не деваются: скрыть и стереть — разные
        действия. На уже сохранённый прогресс это не влияет — pickShape
-       возьмёт settings из кеша, а не отсюда. */
-    settings: { hidden: { anki: true } },
+       возьмёт settings из кеша, а не отсюда.
+
+       Звук (§12.5) живёт здесь же и по той же причине: настройка следует
+       за аккаунтом, а не за браузером. `on: false` — не осторожность,
+       а требование спеки: трекер учёбы, который неожиданно пищит, —
+       враждебный трекер. */
+    settings: { hidden: { anki: true }, sound: { on: false, vol: 0.6 } },
     createdAt: null
   };
 }
@@ -41,9 +46,17 @@ const HIDEABLE = ['anki'];
 const Store = {
   d: null,
 
+  /* Был ли на этом устройстве сохранённый кеш в момент загрузки.
+     Нужно ровно одному месту — слиянию настроек в sync.js (§12.5-bis):
+     на чистом устройстве побеждает облако, на обжитом — местное.
+     Отличить «человек выключил звук» от «здесь просто умолчание»
+     иначе нечем: fresh() отдаёт непустой объект настроек. */
+  cached: false,
+
   load() {
     try {
       const raw = localStorage.getItem(KEY);
+      this.cached = !!raw;
       /* Object.assign по разобранному JSON — это загрязнение прототипа:
          у ключа "__proto__" есть [[Set]], и Object.assign его вызывает.
          pickShape переносит только ключи, которые есть в образце. */
@@ -52,6 +65,7 @@ const Store = {
     } catch (e) {
       console.warn('Не удалось прочитать сохранение, начинаю с чистого', e);
       this.d = fresh();
+      this.cached = false;      // испорченный кеш — это тот же чистый лист
     }
     if (!this.d.createdAt) this.d.createdAt = new Date().toISOString();
     return this.d;
@@ -86,6 +100,48 @@ const Store = {
     return true;
   },
   hideable() { return HIDEABLE.slice(); },
+
+  /* ---------- звук (§12.5) ----------
+     Соседствует с hidden не случайно: то же место хранения, тот же
+     маршрут в payload, та же логика «настройка следует за аккаунтом».
+
+     Читается защитно, как и hidden. pickShape в security.js мелкий:
+     он подменяет весь объект `settings` тем, что лежало в кеше, и
+     внутрь не заглядывает. Значит здесь может оказаться что угодно —
+     старый кеш без ключа `sound`, строка вместо объекта, вообще null.
+     Отсюда own() и проверки типа на каждом шаге, а не `s.sound.on`.
+
+     Побочная выгода той же мелкости: у всех, кто пользовался сайтом
+     до этой правки, ключа `sound` в кеше нет, и звук у них выключен
+     без единой строки миграции. */
+  soundOn() {
+    const s = this.d.settings;
+    const so = s && typeof s === 'object' ? own(s, 'sound', null) : null;
+    return so && typeof so === 'object' ? own(so, 'on', false) === true : false;
+  },
+  /** Громкость 0…1. Один регулятор, без «настроек звука» на пол-экрана. */
+  soundVol() {
+    const s = this.d.settings;
+    const so = s && typeof s === 'object' ? own(s, 'sound', null) : null;
+    const v = so && typeof so === 'object' ? own(so, 'vol', null) : null;
+    if (typeof v !== 'number' || !isFinite(v)) return 0.6;
+    return Math.min(1, Math.max(0, v));
+  },
+  /** Общая починка формы: после неё в settings.sound точно объект. */
+  _sound() {
+    if (!this.d.settings || typeof this.d.settings !== 'object') this.d.settings = {};
+    if (!this.d.settings.sound || typeof this.d.settings.sound !== 'object') {
+      this.d.settings.sound = { on: false, vol: 0.6 };
+    }
+    return this.d.settings.sound;
+  },
+  setSoundOn(on) { this._sound().on = !!on; this.save(); return !!on; },
+  setSoundVol(v) {
+    const n = Math.min(1, Math.max(0, Number(v)));
+    this._sound().vol = isFinite(n) ? n : 0.6;
+    this.save();
+    return this._sound().vol;
+  },
 
   /* ---------- недели ---------- */
   week(n) {
