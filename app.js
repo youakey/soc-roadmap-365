@@ -208,7 +208,6 @@ function rToday() {
   const cw = currentWeek();
   const w = WEEKS[cw - 1];
   const st = Store.week(cw);
-  const t = Store.totals();
   const sess = META.sessionWeeks.includes(cw);
   const blocks = sess ? DAILY.filter(b => ['polish','english','lab'].includes(b.id)) : DAILY;
   const goalMin = blocks.reduce((s, b) => s + (b.id === 'lab' && sess ? 35 : b.min), 0);
@@ -244,6 +243,13 @@ function rToday() {
     }).join('')}</div>
     ${sess ? `<p class="tiny mt" style="color:var(--amber)">Неделя сессии. Универ приоритетнее — это заложено в план, а не провал.</p>` : ''}
   </div>`;
+
+  /* ZERO — приборная панель (§12.3). Стоит ПОД чеклистом, а не над ним:
+     спека прямо требует, чтобы чеклист не уезжал вниз. Виджет собирает
+     себя сам, здесь только две строки — так его можно вырезать целиком
+     вместе с zero.js, ничего больше не трогая. */
+  h += `<div class="section-h"><h2>ZERO</h2><span class="rule"></span></div>`;
+  h += Zero.html();
 
   /* Словарь. Счётчик сырых слов и есть напоминание, что пора сесть
      за оформление, — поэтому он висит здесь, рядом с чеклистом,
@@ -305,14 +311,12 @@ function rToday() {
   h += `<div class="section-h"><h2>WEEK W${cw}</h2><span class="rule"></span><span class="pill q${w.q}">${QUARTERS[w.q].code}</span></div>`;
   h += weekCard(w, true);
 
-  /* streak и цифры */
-  h += `<div class="section-h"><h2>PULSE</h2><span class="rule"></span></div>
-  <div class="grid g3">
-    ${stat(t.streak, 'streak, дней')}
-    ${stat(t.closed + '/52', 'недель закрыто')}
-    ${stat(t.pct + '%', 'года пройдено')}
-  </div>`;
-
+  /* Блок PULSE убран вместе с приходом Zero (§12.3). Он показывал ровно
+     три числа — streak, закрытые недели, процент года, — и все три теперь
+     стоят в панели выше, рядом с полутора десятками остальных. Два места
+     с одним и тем же числом на одном экране однажды разойдутся: это тот
+     же почерк, что у клиента и серверной границы streak (§12.1-ter).
+     streakCard() остался: там не цифры, а действие — кнопка заморозки. */
   h += streakCard();
 
   /* правило дня */
@@ -346,6 +350,7 @@ function rToday() {
   $('#tPause').onclick = () => tRunning() ? timerPause() : timerResume();
   $('#tReset').onclick = timerReset;
   tPaint();
+  Zero.wire($('#v-today'));
   bindWeekCard($('#v-today'));
 }
 
@@ -974,6 +979,10 @@ function tPaint() {
   if (pb) { pb.textContent = run ? 'PAUSE' : 'RESUME'; pb.disabled = (!T.block && !T.total) || T.done; }
   const rb = $('#tReset');
   if (rb) rb.disabled = !T.block && !T.total;
+
+  /* Ячейка TMR в панели Zero. Своего интервала виджет не заводит —
+     подхватывает тот, что и так крутится, пока идёт отсчёт (§12.3). */
+  Zero.tick();
 
   // на десктопе остаток видно прямо во вкладке
   if (run) document.title = disp.textContent + ' · ' + (T.name || 'FREE RUN');
