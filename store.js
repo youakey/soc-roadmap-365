@@ -200,6 +200,17 @@ const Store = {
     for (let guard = 0; guard < 90; guard++) {
       const day = iso(cur), dow = cur.getDay();
       const back = () => cur.setDate(cur.getDate() - 1);
+
+      /* Та же граница, что и в streakInfo() (§12.1-ter), и её здесь
+         не было. Функции-близнецы: одна считает длину цепочки, вторая
+         ищет день, который её рвёт, — и правку 04.08.2026 получила
+         только первая. Итог: до старта трека streak честно показывал 0,
+         а карточка рядом заявляла «цепочку рвёт 04.08» и предлагала
+         потратить заморозку на день, когда трек ещё не начался.
+         Пропуска до старта не существует: пропустить можно только то,
+         что уже началось. */
+      if (day < META.start) return null;
+
       if (dow === 0 || dow === 6) { if (this.dayAny(day)) credits++; back(); continue; }
       if (this.dayAny(day)) { back(); continue; }
       if (freezes[day])     { back(); continue; }

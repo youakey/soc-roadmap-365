@@ -411,6 +411,7 @@ const Zero = {
        а не элементы. Ровно тот приём, которым §3.10 заменил шесть
        десятков колец одной композицией, только в векторе. */
     const core = `<div class="z-core">
+      <div class="z-3d">
       <span class="z-ticks"></span>
       <span class="z-sweep"></span>
       <svg class="z-core-svg" viewBox="0 0 200 200" aria-hidden="true">
@@ -430,6 +431,7 @@ const Zero = {
         <b class="mono" data-decode="1">W${m.cw}</b>
         <span class="mono">${t.pct}% · ${t.hoursFact}ч</span>
         <span class="mono z-core-sub">${secEsc(QUARTERS[m.q].code)} · ${secEsc(QUARTERS[m.q].name)}</span>
+      </div>
       </div>
     </div>`;
 
@@ -556,7 +558,52 @@ const Zero = {
 
     this.stopWave();
     this.startWave(box);
+    this.aim(box);
     this.tick();      // сразу подставить остаток таймера, если он идёт
+  },
+
+  /** Ядро смотрит на курсор: параллакс по слоям внутри перспективы.
+   *
+   *  Только под ПК и только при точном указателе — то же правило, что
+   *  §4.1 задаёт всему оживлению: на телефоне оно выключается, там уже
+   *  гасится половина фона ради памяти (§3.10). Плюс `preserve-3d`
+   *  разводит слои ядра по отдельным композиторским поверхностям,
+   *  а при DPR 3 это ровно тот расход, которого виджет избегает.
+   *
+   *  Ни одного обработчика на кадр: `pointermove` только запоминает
+   *  координаты, запись в CSS идёт одним rAF. Без покоя ядро дрейфует
+   *  само — кадрами CSS, без JS. */
+  aim(box) {
+    const core = box.querySelector('.z-core');
+    if (!core || REDUCED || !this.wide() || isCoarse()) return;
+    let raf = null, px = 0, py = 0;
+    box.onpointermove = e => {
+      const r = box.getBoundingClientRect();
+      if (!r.width || !r.height) return;
+      px = (e.clientX - r.left) / r.width - 0.5;
+      py = (e.clientY - r.top) / r.height - 0.5;
+      if (raf) return;
+      raf = requestAnimationFrame(() => {
+        raf = null;
+        core.classList.add('aim');
+        core.style.setProperty('--ry', (px * 24).toFixed(1) + 'deg');
+        core.style.setProperty('--rx', (-py * 17).toFixed(1) + 'deg');
+      });
+    };
+    box.onpointerleave = () => {
+      if (raf) { cancelAnimationFrame(raf); raf = null; }
+      core.classList.remove('aim');
+      core.style.removeProperty('--rx');
+      core.style.removeProperty('--ry');
+    };
+  },
+
+  /** Порог, на котором §4.1 разрешает оживление, и тот же, на котором
+   *  таббар меняется на сайдбар. Держится в CSS; здесь он нужен только
+   *  чтобы не вешать слушатель там, где 3D всё равно выключено. */
+  wide() {
+    try { return window.matchMedia('(min-width: 880px)').matches; }
+    catch (e) { return false; }
   },
 
   /** Осциллограмма. Один canvas, готовый path, перерисовка по rAF

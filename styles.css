@@ -1823,6 +1823,12 @@ html { scrollbar-color: var(--line-hot) transparent; scrollbar-width: thin; }
 
 .z-core { position: relative; width: 196px; aspect-ratio: 1; flex: none;
   display: grid; place-items: center; border-radius: 50%; overflow: hidden; }
+/* Сцена ядра. Клип живёт на .z-core, перспектива — тоже на ней,
+   а preserve-3d на .z-3d, и это не вкусовщина: у элемента с overflow,
+   отличным от visible, значение transform-style принудительно
+   становится flat. Клипующий элемент трёхмерным контекстом быть
+   не может — поэтому их двое. */
+.z-3d { position: absolute; inset: 0; display: grid; place-items: center; }
 
 /* Насечка одной композицией. Маска вырезает кольцо у самого края,
    чтобы она не спорила с дугами данных внутри. */
@@ -1980,12 +1986,59 @@ html { scrollbar-color: var(--line-hot) transparent; scrollbar-width: thin; }
 .z-tape-in b { color: var(--cyan); font-weight: 400; opacity: .7; margin: 0 5px; }
 @keyframes zTape { to { transform: translateX(-50%) } }
 
-/* ── широкий экран: панель дышит свободнее ── */
+/* ── широкий экран: панель дышит свободнее и становится объёмной ──
+
+   ТРЁХМЕРНОСТЬ ЖИВЁТ ТОЛЬКО ЗДЕСЬ, и это следствие двух правил сразу.
+   §4.1: «оживление только под ПК, на телефоне выключается». §3.10:
+   preserve-3d разводит слои ядра по отдельным композиторским
+   поверхностям, и при DPR 3 это ровно тот расход, от которого виджет
+   и так уворачивается.
+
+   Про §3.5-bis. perspective делает элемент containing block для
+   position: fixed — поэтому она стоит на .z-core и нигде выше.
+   Ни на #app, ни на .layout, ни на main, ни на .view её нет и быть
+   не должно: там она отклеила бы таббар в третий раз. Разбор ровно
+   тот же, что у сцены тренажёра DRILL (§10.2), где rotateY с
+   перспективой заперт в .dstage с overflow: hidden. Здесь клип даёт
+   сама .z-core — она круглая и режет наклонённое содержимое по кругу,
+   как иллюминатор.
+
+   Глубина роздана четырём слоям, а не всем: каждый translateZ — это
+   отдельная поверхность размером с ядро. Четыре при DPR 2 на 220 px —
+   около 3 МБ, и это потолок. */
 @media (min-width: 880px) {
   .zero { padding: 18px; }
-  .z-core { width: 220px; }
-  .z-read { grid-template-columns: repeat(auto-fill, minmax(86px, 1fr)); }
+  .z-core { width: 220px; perspective: 900px; }
+  .z-read { grid-template-columns: repeat(auto-fill, minmax(86px, 1fr)); perspective: 800px; }
+  .z-gauges { perspective: 700px; }
   .z-wave-c { height: 74px; }
+
+  .z-3d { transform-style: preserve-3d;
+    transform: rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg));
+    animation: zDrift 19s ease-in-out infinite; }
+  /* Курсор ведёт ядро — дрейф на это время выключается, иначе они
+     спорят за одно и то же свойство. */
+  .z-core.aim .z-3d { animation: none; transition: transform .16s linear; }
+  @keyframes zDrift {
+    0%, 100% { transform: rotateX(8deg)  rotateY(-11deg) }
+    50%      { transform: rotateX(-6deg) rotateY(12deg) }
+  }
+
+  /* Глубина задаётся независимым свойством translate, а не transform:
+     у .z-ticks и .z-head transform уже занят вращением и наводкой,
+     и второй раз его не написать. */
+  .z-ticks    { translate: 0 0 -34px; }
+  .z-core-svg { translate: 0 0 12px; }
+  .z-head     { translate: 0 0 26px; }
+  .z-core-txt { translate: 0 0 44px; }
+
+  /* Отклик на наведение — тоже объёмом, но только на время наведения:
+     слой живёт, пока курсор на элементе, и исчезает вместе с ним. */
+  .z-cell { transition: transform .22s var(--ease), border-color .2s, box-shadow .22s; }
+  .z-cell:hover { transform: translateZ(18px) rotateX(-5deg);
+    border-color: var(--line-hot); box-shadow: var(--glow-soft); }
+  .z-g-dial { transition: transform .24s var(--ease); }
+  .z-g:hover .z-g-dial { transform: translateZ(22px); }
 }
 
 /* ── узкий экран: движение остаётся, память — нет ──
@@ -2030,4 +2083,11 @@ html { scrollbar-color: var(--line-hot) transparent; scrollbar-width: thin; }
   .z-cell { opacity: 1; transform: none; }
   .z-adv.fresh { clip-path: none; }
   .z-cur { opacity: .5; }
+  /* Объём снимается целиком: перспектива и preserve-3d уходят вместе
+     с наклоном, иначе слои останутся разведёнными по глубине без
+     единого повода — та же тонкость, что с переворотом в DRILL. */
+  .z-core { perspective: none; }
+  .z-3d { transform: none; transform-style: flat; animation: none !important; }
+  .z-ticks, .z-core-svg, .z-head, .z-core-txt { translate: none; }
+  .z-cell:hover, .z-g:hover .z-g-dial { transform: none; }
 }
