@@ -332,6 +332,14 @@ code, pre, .mono { font-family: var(--mono); }
 .icon-btn:active { transform: scale(.9); }
 
 .layout { display: block; }
+/* min-width: auto у грид-элемента — это «не уже, чем min-content содержимого».
+   Одна строка с white-space: nowrap внутри main раздувает колонку 1fr,
+   вслед за ней весь документ, и центрированное содержимое карточек
+   уезжает вбок. Ровно это и случилось с бегущей лентой Zero (§12.3).
+   Страховка ставится на уровне раскладки, а не на каждом виновнике:
+   виновников со временем становится больше. Тот же приём, что уже
+   стоит на .grid > * и .row > *. */
+.layout > * { min-width: 0; }
 .sidebar { display: none; }
 main { max-width: 1060px; margin: 0 auto; padding: 18px 16px calc(var(--tab-h) + 30px); }
 
@@ -1721,7 +1729,8 @@ html { scrollbar-color: var(--line-hot) transparent; scrollbar-width: thin; }
   animation: zLed 2.6s ease-in-out infinite; }
 @keyframes zLed { 0%,100% { opacity: 1 } 46% { opacity: .28 } }
 .z-name { font-size: 13px; font-weight: 700; letter-spacing: .22em; color: var(--txt); }
-.z-sub  { font-size: 9.5px; letter-spacing: .12em; text-transform: uppercase; }
+.z-sub  { font-size: 9.5px; letter-spacing: .12em; text-transform: uppercase;
+  min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* ── подсказка ──
    Ровно одна на экране. Остальные ждут в очереди, а не ложатся стопкой
@@ -1957,11 +1966,16 @@ html { scrollbar-color: var(--line-hot) transparent; scrollbar-width: thin; }
    без клипа горизонтальный сдвиг расширил бы документ, Safari ужал бы
    страницу, и position: fixed уехал бы вместе с layout-viewport (§3.5).
    Лента высотой 17 px: слой узкий, платить за него нечем. */
-.z-tape { position: relative; overflow: hidden; margin-top: 12px; height: 17px;
-  border-top: 1px solid var(--line); padding-top: 5px;
+.z-tape { position: relative; overflow: hidden; margin-top: 12px; height: 22px;
+  border-top: 1px solid var(--line);
   -webkit-mask: linear-gradient(90deg, transparent, #000 6%, #000 94%, transparent);
           mask: linear-gradient(90deg, transparent, #000 6%, #000 94%, transparent); }
-.z-tape-in { display: inline-block; white-space: nowrap; font-size: 9px;
+/* position: absolute, а не обычный поток: абсолютный элемент не даёт
+   вклада в min-content ширину предка, поэтому длинная строка в nowrap
+   физически не может растянуть раскладку. overflow: hidden у .z-tape
+   при этом обязателен — внутри едет translateX (§3.5). */
+.z-tape-in { position: absolute; left: 0; top: 5px;
+  display: inline-block; white-space: nowrap; font-size: 9px;
   letter-spacing: .14em; color: var(--txt-3); animation: zTape 46s linear infinite; }
 .z-tape-in b { color: var(--cyan); font-weight: 400; opacity: .7; margin: 0 5px; }
 @keyframes zTape { to { transform: translateX(-50%) } }
