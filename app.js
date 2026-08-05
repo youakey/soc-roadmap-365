@@ -191,6 +191,65 @@ function buzz(ms) { try { !REDUCED && navigator.vibrate && navigator.vibrate(ms 
 window.addEventListener('pointerdown', () => Sound.arm(), true);
 window.addEventListener('keydown', () => Sound.arm(), true);
 
+/* ─── широкое озвучивание интерфейса (§12.5, редакция 2) ───
+
+   Закрытый список из пяти поводов отменён: интерфейс озвучивается
+   целиком. Но двести правок в обработчиках — это двести мест, где
+   можно забыть, и ровно та ситуация, из-за которой в проекте одно
+   экранирование на всех (§11.2). Поэтому мелочь ловится ОДНИМ
+   делегированным слушателем на документ, по разметке, а не по
+   именам функций.
+
+   Порядок веток важен: сначала самые узкие признаки, потом общие.
+   Иначе `data-hide` (переключатель) сначала совпадёт с `.btn`
+   и прозвучит как обычная кнопка.
+
+   Отдельный вопрос — что НЕ озвучено. Прокрутка и `mousemove`
+   молчат: оба события идут десятками в секунду и сливаются в дрон,
+   в котором нет ни одного бита смысла. Наведение озвучено только
+   там, где оно дискретно (клетка календаря, пункт меню), и молчит
+   на плотных сетках. Это не осторожность, а то же правило §3.8
+   про эффект наведения: если он заметен раньше содержимого, он
+   слишком яркий. */
+function uiSoundFor(el) {
+  if (!el) return;
+  if (el.disabled) { Sound.deny(); return; }
+
+  if (el.closest('[data-hide],[data-sound],[data-soundui]')) return;   // у них свой голос
+  if (el.closest('[data-go]'))    { Sound.nav(navIndex(el.closest('[data-go]').dataset.go)); return; }
+  if (el.closest('[data-block],[data-task],[data-repo]')) return;      // это уровень действий
+  if (el.closest('summary'))      { Sound.open(!el.closest('details').open); return; }
+  if (el.closest('.wk-h'))        { Sound.open(!el.closest('.wk').classList.contains('open')); return; }
+  if (el.closest('button,.btn'))  { Sound.press(); return; }
+}
+window.addEventListener('click', e => {
+  const el = e.target && e.target.closest ? e.target.closest('button,.btn,summary,.wk-h,[data-go]') : null;
+  if (el) uiSoundFor(el);
+}, true);
+
+/* Поля: на фокус — шорох, на сохранение — короткое подтверждение.
+   Посимвольного звука нет намеренно, это тот же дребезг, из-за
+   которого молчит прокрутка. */
+window.addEventListener('focusin', e => {
+  const t = e.target;
+  if (t && /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName) && t.type !== 'range') Sound.field(false);
+}, true);
+window.addEventListener('change', e => {
+  const t = e.target;
+  if (!t || !/^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName)) return;
+  if (t.type === 'range') return;                       // у VOL своя проба
+  if (t.closest && t.closest('[data-f-status]')) return; // у статуса недели свой голос
+  Sound.field(true);
+}, true);
+
+/** Номер вкладки в NAV — он же высота ноты перехода. Восемь
+ *  разделов дают восемь разных нот, и через неделю переход
+ *  узнаётся на слух раньше, чем глаз доходит до заголовка. */
+function navIndex(id) {
+  for (let i = 0; i < NAV.length; i++) if (NAV[i].id === id) return i;
+  return 0;
+}
+
 /* Достижения нигде не «выдаются» — они пересчитываются из прогресса
    каждый раз заново (Store.achievements()). Значит момент получения
    можно поймать только сравнением с прошлым состоянием.
@@ -210,6 +269,7 @@ function achCheck() {
   ACH_SEEN = now;
   if (!fresh.length) return false;
   Sound.ach();
+  Fx.glitch(document.getElementById('zeroBox'), false);
   return true;
 }
 
@@ -371,8 +431,8 @@ function rToday() {
   if (fb) fb.onclick = () => {
     const day = fb.dataset.day;
     if (!confirm(`Заморозить ${fmtRU(day)}?\n\nДень перестанет считаться пропуском. Заморозок две на квартал — тратить стоит на сессию и болезнь, а не на лень.`)) return;
-    try { Store.freeze(day); Sync.schedule(); toast('Заморожено'); renderAll(); }
-    catch (e) { alert(e.message); }
+    try { Store.freeze(day); Sync.schedule(); Sound.freeze(); toast('Заморожено'); renderAll(); }
+    catch (e) { Sound.err(); alert(e.message); }
   };
 
   $$('[data-block]').forEach(el => el.onclick = () => {
@@ -384,6 +444,11 @@ function rToday() {
          переключения — вес учитывает только что поставленную. */
       const doneNow = blocks.reduce((s, b) => s + ((Store.d.days[today] || {})[b.id] ? 1 : 0), 0);
       Sound.ok(blocks.length ? doneNow / blocks.length : 0.5);
+      /* День закрылся целиком — это веха, а не галочка. Разряд
+         по карточке чеклиста в пару к звуку (§12.6). */
+      if (blocks.length && doneNow === blocks.length) Fx.glitch(el.closest('.card'));
+    } else {
+      Sound.undo();     // раньше снятие молчало, и это читалось как «не сработало»
     }
     Sync.schedule();
     rToday(); renderAll();
@@ -396,6 +461,13 @@ function rToday() {
   $('#tReset').onclick = timerReset;
   tPaint();
   Zero.wire($('#v-today'));
+  /* Дешифровка чисел и волна по ядру (§12.6). Обе зовутся ПОСЛЕ
+     вставки разметки и обе решают сами, есть ли что показывать:
+     digits() перебирает только те ячейки, чьё значение реально
+     изменилось, и на первой отрисовке молчит. То есть источником
+     остаётся смена числа, а не факт перерисовки, — то же правило,
+     что для звука (§12.5). */
+  if (Fx.digits($('#v-today'))) Fx.wave();
   bindWeekCard($('#v-today'));
 }
 
@@ -571,6 +643,7 @@ function drillAct(act) {
     const c = Drill.card();
     if (!c || !confirm('Удалить «' + c.word + '» из словаря?\n\nОтменить будет нельзя.')) return;
     Drill.drop(c.lid);
+    Sound.drop();
     Vocab.remove(c.lid).then(() => { rDrill(); renderAll(); });
     rDrill();
     return;
@@ -823,6 +896,7 @@ function rAnki() {
     const row = Vocab.rows.find(x => x.lid === b.dataset.vdel);
     if (!row || !confirm('Удалить «' + row.word + '»?\n\nОтменить будет нельзя.')) return;
     Drill.drop(b.dataset.vdel);
+    Sound.drop();
     Vocab.remove(b.dataset.vdel).then(() => { rAnki(); renderAll(); });
   });
 
@@ -844,6 +918,7 @@ function rAnki() {
   $$('[data-bf]').forEach(b => b.onclick = () => { BROWSE_FILTER = b.dataset.bf; rAnki(); });
 
   $$('[data-vexp]').forEach(b => b.onclick = () => {
+    Sound.data();
     const n = Vocab.export(b.dataset.vexp, ANKI_FIELDS, ANKI_REEXPORT);
     if (!n) { toast('Выгружать нечего'); return; }
     toast('Выгружено карточек: ' + n);
@@ -907,16 +982,19 @@ function timerStart(block, min, name) {
   T = { block, name, total: min * 60, endsAt: Date.now() + min * 60000, left: null, done: false };
   T_BEEP = null;
   tSave(); tLoop(); tPaint(); buzz(10);
+  Sound.timer('start');
 }
 function timerPause() {
   if (!tRunning()) return;
   T.left = tLeft(); T.endsAt = null;
   tSave(); tLoop(); tPaint();
+  Sound.timer('pause');
 }
 function timerResume() {
   if (T.left == null) return;
   T.endsAt = Date.now() + T.left * 1000; T.left = null;
   tSave(); tLoop(); tPaint();
+  Sound.timer('resume');
 }
 /** Добор минут на ходу.
  *
@@ -952,6 +1030,7 @@ function timerAdd(min) {
 
   T_BEEP = null;                                // отсчёт сдвинулся — тики заново
   tSave(); tLoop(); tPaint(); buzz(8);
+  Sound.timer('add');
   const box = $('#tBox');
   if (box) { box.classList.remove('bump'); void box.offsetWidth; box.classList.add('bump'); }
   if (idle && VIEW === 'today') rToday();       // подсветить PAUSE/RESET
@@ -961,6 +1040,7 @@ function timerReset() {
   T = { block: null, name: '', total: 0, endsAt: null, left: null, done: false };
   T_BEEP = null;
   tSave(); tLoop(); tPaint();
+  Sound.timer('reset');
   document.title = 'SOC Roadmap 365';
   if (VIEW === 'today') rToday();
 }
@@ -990,6 +1070,9 @@ function timerFinish(silent) {
   if (!silent) {
     try { navigator.vibrate && navigator.vibrate([200, 90, 200]); } catch (e) {}
     Sound.done();
+    /* Разряд по циферблату. Звук и картинка пускаются из одного
+       места, иначе разъедутся во времени (§12.6). */
+    Fx.glitch($('#tBox') || $('#v-today .timer'), false);
   }
   T_BEEP = null;
   renderAll();
@@ -1325,7 +1408,7 @@ function wireCalendar() {
     if (wk) { openWeek(+wk.dataset.wkOpen); return; }
 
     const mo = e.target.closest('[data-mo]');
-    if (mo) { CAL_I = +mo.dataset.mo; CAL_MODE = 'month'; calRepaint('cal-in'); return; }
+    if (mo) { CAL_I = +mo.dataset.mo; CAL_MODE = 'month'; Sound.open(true); calRepaint('cal-in'); return; }
 
     const day = e.target.closest('.cal-c[data-d]');
     if (day && day.dataset.w) openWeek(+day.dataset.w);
@@ -1338,12 +1421,18 @@ function wireCalendar() {
     if (c.dataset.d) {
       const d = c.dataset.d;
       const blocks = DAILY.filter(b => own(Store.day(d), b.id, false)).map(b => b.name);
+      /* Клетка звучит тем выше, чем больше минут закрыто в тот день.
+         Проведя рукой по месяцу, месяц можно услышать — ровно то,
+         чего сэмплами не сделать (§12.5). Ограничитель частоты
+         внутри Sound: указатель проходит клетку за 20–30 мс. */
+      Sound.hover(Math.min(1, Store.dayMinutes(d) / 180));
       const frz = own(Store.d.freezes || {}, d, null);
       tip.innerHTML = `${fmtRU(d)} · ${c.dataset.w ? 'W' + c.dataset.w : 'вне трека'} · ${Store.dayMinutes(d)} мин` +
         (blocks.length ? ' · ' + esc(blocks.join(', ')) : frz ? ' · заморожен' : '');
     } else {
       const months = calMonths(), mo = months[+c.dataset.mo];
       const s = monthStat(mo.y, mo.m, iso(new Date()));
+      Sound.hover(s.due ? s.done / s.due : 0);
       tip.innerHTML = `${MON_L[mo.m]} ${mo.y} · закрыто ${s.done} из ${s.due}`;
     }
   };
@@ -1606,7 +1695,7 @@ function bindWeekCard(root) {
        «в работе» и «перенесена» — это пометки, а не вехи.
        Порядок важен: если неделя закрыла квартал, достижение
        прозвучит следом и перекроет — потому и проверяется вторым. */
-    if (i.value === 'Закрыта') Sound.week();
+    if (i.value === 'Закрыта') { Sound.week(); Fx.glitch(i.closest('.wk') || i.closest('.card'), false); }
     achCheck();
     Sync.schedule(); toast('Сохранено'); renderAll();
   });
@@ -1769,7 +1858,7 @@ function renderApps() {
 }
 function bindApps() {
   $$('[data-delapp]').forEach(b => b.onclick = () => {
-    if (confirm('Удалить отклик?')) { Store.delApp(+b.dataset.delapp); rCareer(); renderAll(); }
+    if (confirm('Удалить отклик?')) { Store.delApp(+b.dataset.delapp); Sound.drop(); rCareer(); renderAll(); }
   });
   $$('[data-appst]').forEach(s => s.onchange = () => {
     Store.updApp(+s.dataset.appst, { status: s.value }); Sync.schedule(); toast('Сохранено'); rCareer();
@@ -1812,11 +1901,17 @@ function settingsHtml() {
      звуке отключён: серый неподвижный ползунок честнее исчезнувшего —
      видно, что настройка есть и чего она ждёт. */
   const sOn = Store.soundOn();
+  const uOn = Store.soundUi();
   const vol = Math.round(Store.soundVol() * 100);
   const sound = `<div class="set-row">
       <span class="set-name">${ICONS.sound}SOUND</span>
       <button class="btn sm sw${sOn ? ' on' : ''}" data-sound role="switch"
               aria-checked="${sOn ? 'true' : 'false'}">${sOn ? 'ON' : 'OFF'}</button>
+    </div>
+    <div class="set-row${sOn ? '' : ' off'}">
+      <span class="set-name">UI</span>
+      <button class="btn sm sw${sOn && uOn ? ' on' : ''}" data-soundui role="switch"
+              aria-checked="${uOn ? 'true' : 'false'}"${sOn ? '' : ' disabled'}>${uOn ? 'ON' : 'OFF'}</button>
     </div>
     <div class="set-row${sOn ? '' : ' off'}">
       <span class="set-name">VOL</span>
@@ -1866,6 +1961,22 @@ function wireSettings(root) {
        (§12.2-bis). renderAll() перебирает разделы целиком. */
     renderAll();
     buzz(10);
+  };
+
+  /* Мелочь интерфейса. Отдельный тумблер появился вместе с отменой
+     закрытого списка (§12.5, редакция 2): вехи человек оставит,
+     а россыпь на каждое нажатие захочет выключить первой. Кнопка
+     недоступна, пока выключен главный SOUND, — иначе она обещает
+     то, чего не будет. */
+  const ub = root.querySelector('[data-soundui]');
+  if (ub) ub.onclick = () => {
+    if (!Store.soundOn()) { Sound.deny(); return; }
+    const on = !Store.soundUi();
+    Store.setSoundUi(on);
+    Sync.schedule();
+    if (on) Sound.toggle(true);       // выключая, молчим: подтверждать нечем
+    renderAll();
+    buzz(8);
   };
 
   /* Громкость. `input` — на каждое движение ползунка, `change` —
@@ -2046,14 +2157,14 @@ function rMore() {
   });
   $$('[data-copy2]').forEach(b => b.onclick = () =>
     navigator.clipboard.writeText(IR_TEMPLATE).then(() => toast('Скопировано'), () => toast('Не удалось')));
-  $('#expBtn').onclick = () => { Store.export(); toast('Бэкап скачан'); };
+  $('#expBtn').onclick = () => { Store.export(); Sound.data(); toast('Бэкап скачан'); };
   $('#impBtn').onclick = () => $('#impFile').click();
   $('#impFile').onchange = e => {
     const f = e.target.files[0]; if (!f) return;
     const r = new FileReader();
     r.onload = () => {
-      try { Store.import(r.result); toast('Загружено'); renderAll(); }
-      catch (err) { alert('Не удалось прочитать файл: ' + err.message); }
+      try { Store.import(r.result); Sound.data(); toast('Загружено'); renderAll(); }
+      catch (err) { Sound.err(); alert('Не удалось прочитать файл: ' + err.message); }
     };
     r.readAsText(f);
   };
@@ -2253,6 +2364,10 @@ async function openApp(note) {
      по построению. Это не изъян, а ровно то поведение, которого
      требует §12.5: звука при загрузке страницы быть не должно. */
   Sound.login();
+  /* Загрузочная последовательность (§12.6). Один раз за сессию,
+     флаг внутри Fx. На восстановленной сессии звука не будет —
+     жеста не было, — но картинка покажется: она жеста не требует. */
+  Fx.boot();
 }
 
 Auth.onenter = async (note) => {
@@ -2299,7 +2414,14 @@ window.addEventListener('keydown', e => {
   drillAct(act);
 });
 
-Sync.onchange = () => { if ($('#app').classList.contains('on') && VIEW === 'more') rMore(); };
+/* Состояние обмена с сервером. Ограничитель на секунду живёт
+   внутри Sound.sync(): синхронизация умеет дёргаться, и без него
+   busy/ok чередовались бы очередью (§12.5). */
+Sync.onchange = () => {
+  if (!$('#app').classList.contains('on')) return;
+  Sound.sync(Sync.state);
+  if (VIEW === 'more') rMore();
+};
 window.addEventListener('pagehide', () => {
   if (Sync.user) Sync.push();
   if (Vocab.user) Vocab.push();

@@ -33,7 +33,7 @@ function fresh() {
        за аккаунтом, а не за браузером. `on: false` — не осторожность,
        а требование спеки: трекер учёбы, который неожиданно пищит, —
        враждебный трекер. */
-    settings: { hidden: { anki: true }, sound: { on: false, vol: 0.6 } },
+    settings: { hidden: { anki: true }, sound: { on: false, vol: 0.6, ui: true } },
     createdAt: null
   };
 }
@@ -127,11 +127,28 @@ const Store = {
     if (typeof v !== 'number' || !isFinite(v)) return 0.6;
     return Math.min(1, Math.max(0, v));
   },
+  /** Мелочь интерфейса: вкладки, кнопки, поля, наведение (§12.5).
+   *  Отдельный тумблер появился вместе с отменой закрытого списка:
+   *  именно эту россыпь человек захочет выключить первой, оставив
+   *  вехи. Умолчание `true` — но оно ничего не включает само по себе,
+   *  потому что накрыто главным `on`, который выключен.
+   *
+   *  Отсутствие ключа читается как `true`, а не как `false`: у тех,
+   *  кто включил звук до этой правки, в кеше ключа нет, и трактовать
+   *  его как «выключено» значило бы молча урезать им звук. */
+  soundUi() {
+    const s = this.d.settings;
+    const so = s && typeof s === 'object' ? own(s, 'sound', null) : null;
+    if (!so || typeof so !== 'object') return true;
+    return own(so, 'ui', true) !== false;
+  },
+  setSoundUi(on) { this._sound().ui = !!on; this.save(); return !!on; },
+
   /** Общая починка формы: после неё в settings.sound точно объект. */
   _sound() {
     if (!this.d.settings || typeof this.d.settings !== 'object') this.d.settings = {};
     if (!this.d.settings.sound || typeof this.d.settings.sound !== 'object') {
-      this.d.settings.sound = { on: false, vol: 0.6 };
+      this.d.settings.sound = { on: false, vol: 0.6, ui: true };
     }
     return this.d.settings.sound;
   },

@@ -92,11 +92,11 @@ jobs:
             eslint@9.13.0 eslint-plugin-security@3.0.1
           # Сначала прогон с показом предупреждений — он нужен как отчёт в логе.
           npx eslint --config eslint.config.mjs \
-            app.js auth.js store.js sync.js vocab.js zero.js sound.js config.js security.js data.js data-weeks.js tools/*.mjs \
+            app.js auth.js store.js sync.js vocab.js zero.js sound.js fx.js config.js security.js data.js data-weeks.js tools/*.mjs \
             --max-warnings 400 || true
           # Затем прогон, который валит сборку на ошибках (правила из блока error).
           npx eslint --config eslint.config.mjs \
-            app.js auth.js store.js sync.js vocab.js zero.js sound.js config.js security.js tools/*.mjs
+            app.js auth.js store.js sync.js vocab.js zero.js sound.js fx.js config.js security.js tools/*.mjs
 
       # ── 6. Таббар не отклеится снова ────────────────────────
       # Баг кусал дважды: transform на #app делает его containing block
@@ -148,3 +148,26 @@ jobs:
             exit 1
           fi
           echo "Звук ждёт жеста."
+
+      # ── 9. Спецэффекты не трогают предков таббара ───────────
+      # §3.5-bis: transform/filter/perspective/contain/will-change
+      # у #app, .layout, main или .view делают их containing block
+      # для position: fixed, и таббар отклеивается. Эффекты §12.6
+      # вешаются только на карточки и на собственный узел экрана
+      # загрузки в body — здесь это и проверяется, по селекторам
+      # в JS, а не по CSS: класс ставит именно JS.
+      - name: Эффекты мимо предков fixed
+        run: |
+          set -uo pipefail
+          if grep -nE "getElementById\('app'\)|querySelector\('(#app|\.layout|main|\.view)" fx.js; then
+            echo "::error::fx.js целится в предка таббара. Эффекты живут на карточках и в body, см. §3.5-bis и §12.6."
+            exit 1
+          fi
+          if grep -nE '^[[:space:]]*Fx\.' fx.js; then
+            echo "::error::fx.js что-то выполняет при загрузке."
+            exit 1
+          fi
+          # Экран загрузки обязан лежать в body: внутри #app он взведёт
+          # ту же мину, из-за которой таббар уезжал дважды.
+          grep -q 'document.body.appendChild' fx.js || { echo "::error::экран загрузки больше не в body"; exit 1; }
+          echo "Эффекты на месте."

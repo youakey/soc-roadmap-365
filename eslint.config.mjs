@@ -25,7 +25,8 @@ export default [
         /* Web Audio (§12.5). Префиксный webkitAudioContext нужен ради
            старых Safari: там весь звук держится только на нём. */
         AudioContext: 'readonly', webkitAudioContext: 'readonly',
-        performance: 'readonly'
+        performance: 'readonly', cancelAnimationFrame: 'readonly',
+        Float32Array: 'readonly'
       }
     },
     plugins: { security },

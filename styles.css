@@ -1266,6 +1266,136 @@ input[type=range]::-moz-range-thumb { width: 13px; height: 13px; border-radius: 
   background: var(--elevated); border: 2px solid var(--cyan); }
 input[type=range]:focus-visible { outline: 2px solid var(--cyan); outline-offset: 3px; }
 
+/* ══════════ СПЕЦЭФФЕКТЫ (§12.6) ══════════
+
+   Про containing block. Всё ниже вешается ТОЛЬКО на карточки
+   (`.card`, `.wk`, `#zeroBox`) и на собственный узел экрана
+   загрузки в `body`. Ни `#app`, ни `.layout`, ни `main`, ни `.view`
+   этих классов не получают никогда: `transform` у предка делает его
+   containing block для `position: fixed`, и таббар отклеивается
+   (§3.5-bis). У `.card` `transform` и так живёт от анимации `rise`,
+   и это уже разобрано там же как безопасное — карточка предком
+   таббара не является.
+
+   Про память. Ни одного нового полноэкранного слоя: разряд — два
+   псевдоэлемента на одной карточке, волна двигает прозрачность
+   уже существующих узлов, экран загрузки живёт полторы секунды
+   и удаляется из документа. Это прямое следствие §3.10.
+
+   Ни `filter`, ни `backdrop-filter` не используется нигде: первый
+   в списке §3.5-bis, второй даёт рывки при инерционной прокрутке
+   на iOS (§9). Цветоделение набирается двумя слоями с
+   `mix-blend-mode`, сдвиг — `translate`. */
+
+/* ── 1. Глитч-разряд ── */
+.fx-glitch { animation: fxShake .42s steps(6, end) both; }
+.fx-glitch::before, .fx-glitch::after {
+  content: ''; position: absolute; inset: -1px; z-index: 3;
+  pointer-events: none; border-radius: inherit;
+  mix-blend-mode: screen; opacity: 0;
+}
+.fx-glitch::before { background: linear-gradient(90deg, #ff004022, transparent 40%);
+  animation: fxRgbA .42s steps(5, end) both; }
+.fx-glitch::after  { background: linear-gradient(270deg, #00e5ff22, transparent 40%);
+  animation: fxRgbB .42s steps(5, end) both; }
+
+@keyframes fxShake {
+  0%   { translate: 0 0; }
+  12%  { translate: -3px 1px; }
+  26%  { translate: 4px -1px; }
+  38%  { translate: -2px 0; }
+  52%  { translate: 3px 1px; }
+  70%  { translate: -1px 0; }
+  100% { translate: 0 0; }
+}
+@keyframes fxRgbA {
+  0% { opacity: 0; clip-path: inset(0 0 82% 0); }
+  25% { opacity: .9; clip-path: inset(14% 0 62% 0); }
+  55% { opacity: .7; clip-path: inset(58% 0 22% 0); }
+  80% { opacity: .5; clip-path: inset(30% 0 48% 0); }
+  100% { opacity: 0; clip-path: inset(0 0 96% 0); }
+}
+@keyframes fxRgbB {
+  0% { opacity: 0; clip-path: inset(70% 0 0 0); }
+  30% { opacity: .8; clip-path: inset(40% 0 34% 0); }
+  60% { opacity: .6; clip-path: inset(8% 0 74% 0); }
+  85% { opacity: .4; clip-path: inset(62% 0 16% 0); }
+  100% { opacity: 0; clip-path: inset(94% 0 0 0); }
+}
+
+/* ── 2. Загрузочная последовательность ──
+   `position: fixed` и узел лежит прямо в body, поэтому предков
+   с `transform` у него нет по построению. */
+.fx-boot {
+  position: fixed; inset: 0; z-index: 200;
+  display: grid; place-items: center;
+  background: radial-gradient(120% 90% at 50% 45%, #0b111af2 0%, #06090ffa 60%, #06090f 100%);
+  animation: fxBootIn .18s var(--ease) both;
+}
+.fx-boot.out { animation: fxBootOut .24s var(--ease) both; }
+.fx-boot-in { position: relative; min-width: 264px; padding: 0 8px;
+  font-size: 12.5px; letter-spacing: .06em; color: var(--cyan); }
+.fx-boot-in p { margin: 0 0 7px; opacity: 0; white-space: nowrap;
+  animation: fxLine .3s var(--ease) both; animation-delay: calc(var(--i) * .16s + .1s); }
+.fx-boot-bar { display: block; height: 2px; margin-top: 12px; width: 0;
+  background: var(--grad); box-shadow: var(--glow-soft);
+  animation: fxBar 1.15s var(--ease) both; }
+
+@keyframes fxBootIn  { from { opacity: 0 } to { opacity: 1 } }
+@keyframes fxBootOut { from { opacity: 1 } to { opacity: 0 } }
+@keyframes fxLine    { from { opacity: 0; translate: -10px 0 } to { opacity: .92; translate: 0 0 } }
+@keyframes fxBar     { from { width: 0 } to { width: 100% } }
+
+/* ── 3. Волна по ядру Zero ──
+   Двигается только прозрачность и свечение уже существующих узлов;
+   новых слоёв не появляется. */
+.fx-wave .z-arc.a1 { animation: fxWaveArc .9s var(--ease) both; }
+.fx-wave .z-arc.a2 { animation: fxWaveArc .9s var(--ease) .08s both; }
+.fx-wave .z-arc.a3 { animation: fxWaveArc .9s var(--ease) .16s both; }
+.fx-wave .z-core-txt { animation: fxWaveGlow .9s var(--ease) both; }
+.fx-pulse .z-g-dial { animation: fxWaveGlow .9s var(--ease) both; }
+.fx-pulse .z-g:nth-child(2) .z-g-dial { animation-delay: .06s; }
+.fx-pulse .z-g:nth-child(3) .z-g-dial { animation-delay: .12s; }
+.fx-pulse .z-g:nth-child(4) .z-g-dial { animation-delay: .18s; }
+.fx-pulse .z-led { animation: fxLed .9s steps(2, end) 3; }
+
+@keyframes fxWaveArc  { 0% { opacity: 1 } 22% { opacity: .35 } 55% { opacity: 1 } 100% { opacity: 1 } }
+@keyframes fxWaveGlow {
+  0%   { box-shadow: none; }
+  25%  { box-shadow: 0 0 22px -6px var(--cyan); }
+  100% { box-shadow: none; }
+}
+@keyframes fxLed { 0%, 100% { opacity: 1 } 50% { opacity: .25 } }
+
+/* ── 4. Дешифровка чисел ──
+   Сам перебор глифов делает fx.js; CSS отвечает только за то,
+   чтобы прыгающая ширина строки не дёргала соседей. */
+#zeroBox .z-v { font-variant-numeric: tabular-nums; }
+
+/* Узкий экран и prefers-reduced-motion: эффекты гасятся целиком.
+   Дублируется в JS (Fx.off) намеренно — CSS гасит кадры, JS не даёт
+   создать узел экрана загрузки вовсе. Одного из двух мало: первое
+   оставит невидимый оверлей поверх приложения, второе не поможет
+   классам, которые уже висят. */
+@media (max-width: 700px) {
+  .fx-glitch, .fx-glitch::before, .fx-glitch::after,
+  .fx-wave .z-arc, .fx-wave .z-core-txt,
+  .fx-pulse .z-g-dial, .fx-pulse .z-led { animation: none !important; }
+  .fx-boot { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .fx-glitch, .fx-glitch::before, .fx-glitch::after,
+  .fx-boot, .fx-boot-in p, .fx-boot-bar,
+  .fx-wave .z-arc, .fx-wave .z-core-txt,
+  .fx-pulse .z-g-dial, .fx-pulse .z-led { animation: none !important; }
+  .fx-boot { display: none; }
+}
+
+/* Голос Zero в ленте телеметрии (§12.6). Отличается от чисел
+   только цветом и наклоном: он часть потока, а не врезка. */
+.z-tape-in .z-say { font-style: normal; color: var(--cyan);
+  opacity: .85; letter-spacing: .04em; }
+
 /* ══════════ КАЛЕНДАРЬ ПРОГРЕССА (§12.4) ══════════
    Голограмма набирается свечением, градиентами и сканлайнами — тем же
    языком, что фон и циферблат таймера. Ни blur(), ни backdrop-filter:
