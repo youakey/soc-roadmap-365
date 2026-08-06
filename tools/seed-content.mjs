@@ -42,7 +42,12 @@ import vm from 'node:vm';
 const ROOT = new URL('../', import.meta.url);
 const SQL = new URL('supabase.sql', ROOT);
 const TRACK = 'cyber';
-const VERSION = 1;
+/* v2 — разделение «трек ↔ человек» (§13.2 шаг 2): в задачах появились
+   подстановки `{{ключ}}`, а в META — `sessionBlocks`. Форма содержания
+   изменилась, значит одного `--write` мало: живая строка непуста,
+   и прежнее условие «только если пусто» её бы не тронуло. Поэтому
+   условие теперь по версии, а поле `v` заведено ровно для этого. */
+const VERSION = 2;
 
 const BEGIN = '-- >>> seed-content: сгенерировано tools/seed-content.mjs, руками не править';
 const END = '-- <<< seed-content';
@@ -69,7 +74,31 @@ async function readData() {
   for (const [k, v] of Object.entries(out)) {
     if (v === undefined) fail(`в данных нет ${k}`);
   }
-  return out;
+
+  /* СНИМОК ДО person.js, и это принципиально. `person.js` при загрузке
+     сразу зовёт `applyPerson()`, а тот подставляет параметры в задачи
+     ПО МЕСТУ. Прочитай мы WEEKS после — в базу уехал бы трек с чужим
+     ноутбуком вместо шаблона, и заметили бы это на втором пользователе.
+     Клон через JSON, потому что дальше та же структура и сериализуется. */
+  const snap = JSON.parse(JSON.stringify(out));
+
+  /* Теперь можно поднимать клиентский слой параметров: нужен он ровно
+     для того, чтобы СВЕРИТЬ шаблоны с настоящим списком имён, а не
+     с копией этого списка, заведённой здесь. Копия разъехалась бы —
+     §11.5 уже заплатила за это списком аватаров в двух местах. */
+  const shim = `
+    function own(o, k, d) {
+      return o && typeof k === 'string' && Object.prototype.hasOwnProperty.call(o, k) ? o[k] : d;
+    }
+    function safeParse() { return null; }
+    var localStorage = null, console = { warn: function () {} };
+  `;
+  const personSrc = await readFile(new URL('person.js', ROOT), 'utf8');
+  vm.runInContext(shim + '\n;\n' + personSrc, ctx, { filename: 'person.js', timeout: 5000 });
+  const vars = vm.runInContext('Person.vars()', ctx);
+  const applied = vm.runInContext('WEEKS.map(w => w.tasks.slice())', ctx);
+
+  return { ...snap, vars, applied };
 }
 
 /* ── 2. Производные, которые обязаны сойтись ────────────────
@@ -177,6 +206,7 @@ function pack(d) {
       totalHours: META.totalHours,
       weeklyHours: META.weeklyHours,
       sessionWeeks: META.sessionWeeks.slice(),
+      sessionBlocks: META.sessionBlocks.slice(),
       examWeeks: { ...META.examWeeks }
     },
     quarters: Object.fromEntries(Object.keys(QUARTERS).sort().map(k => [k, {
@@ -213,6 +243,18 @@ function sqlLiteral(obj) {
   return esc;
 }
 
+/* Условие — по ВЕРСИИ содержания, а не по «пусто ли оно».
+   Прежнее `content = '{}'` работало ровно один раз: после первого
+   применения содержание непусто, и никакая правка недель до базы
+   больше не доезжает. На пустом content выражение даёт 0 и тоже
+   срабатывает, поэтому одного запроса хватает и новому проекту,
+   и живому. Идемпотентность прежняя: второй запуск на той же версии
+   возвращает ноль строк.
+
+   Каст написан так, чтобы не бросить исключение НИКОГДА: если в `v`
+   окажется строка или объект, jsonb_typeof отсечёт её до каста.
+   Падение миграции на кривых данных — это ровно тот случай, когда
+   «не применилось ничего» лучше, чем половина. */
 function statement(lit) {
   return [
     BEGIN,
@@ -220,31 +262,97 @@ function statement(lit) {
     `   set content = '${lit}'::jsonb,`,
     '       updated_at = now()',
     ` where id = '${TRACK}'`,
-    "   and (content is null or content = '{}'::jsonb);",
+    '   and coalesce(',
+    "         case when jsonb_typeof(content -> 'v') = 'number'",
+    "              then (content ->> 'v')::int end, 0) < " + VERSION + ';',
     END
   ].join('\n');
 }
 
-/* ── 5. Личное внутри задач — мерка для следующего захода ───
-   §13.2 шаг 2 вынимает параметры человека из трека. Резать сейчас
-   нельзя (§3.2-bis), но пересчитать — можно и нужно. */
-const PERSONAL = /ASUS|MacBook|A12-9720P|Kingston|NVMe|студенческ|Student Pricing|бюджет|Брест|Минск|rabota\.by|dev\.by/i;
+/* ── 5. Личное внутри задач — теперь запрет, а не мерка ─────
+   §13.2 шаг 2 вынул параметры человека из трека, и с этого момента
+   счётчик обязан показывать ноль. Предупреждение здесь не годится:
+   «просто оставим как есть, потом уберём» — это и есть та тропинка,
+   по которой личное возвращается в трек. Поэтому — падение.
+
+   Из прежнего списка маркеров убрано слово «бюджет»: оно ловило
+   ссылку «§Бюджет» в задаче W51, то есть отсылку к разделу трека,
+   а вовсе не бюджет человека. Одиннадцатое попадание из §3.2-bis
+   было ложным — настоящих швов было десять. */
+const PERSONAL = new RegExp(
+  ['ASUS', 'MacBook', 'A12-9720P', 'Kingston', 'Student Pricing', 'студенческ',
+   'Брест', 'Минск', 'Беларус', 'Приорбанк', 'rabota\\.by', 'dev\\.by',
+   'justjoin', 'nofluffjobs', 'niebezpiecznik', 'pracuj\\.pl'].join('|'), 'i');
+
 function personalSeams(WEEKS) {
   const hits = [];
   WEEKS.forEach(w => w.tasks.forEach(x => { if (PERSONAL.test(x)) hits.push(`W${w.w}`); }));
   return hits;
 }
 
+/* ── 5-bis. Подстановки обязаны разрешаться ─────────────────
+   Опечатка в имени ключа не ломает страницу: `{{tpyo}}` просто
+   остаётся видимым в тексте задачи (так решено намеренно, см.
+   person.js). Значит поймать её должен кто-то другой, и здесь для
+   этого есть всё: и шаблоны, и НАСТОЯЩИЙ список имён из person.js.
+
+   Проверяется дважды и по-разному. Сначала — что каждое имя из
+   шаблона есть среди переменных. Потом — что после применения
+   параметров в задачах не осталось ни одной пары `{{`. Второе
+   не следует из первого: подстановка могла бы и не сработать вовсе,
+   и первая проверка этого бы не заметила. */
+const TPL_RE = /\{\{([a-z][a-z0-9_]{0,23})\}\}/g;
+
+function checkTemplates(WEEKS, DAILY, vars, applied) {
+  const errs = [];
+  const seen = new Set();
+
+  const scan = (s, at) => {
+    if (typeof s !== 'string') return;
+    for (const m of s.matchAll(TPL_RE)) {
+      seen.add(m[1]);
+      if (!Object.prototype.hasOwnProperty.call(vars, m[1])) {
+        errs.push(`${at}: подстановка «${m[1]}» — такого имени нет в Person.vars()`);
+      }
+    }
+    /* Незакрытая пара `{{` не попадёт в regexp вовсе и уедет в базу
+       как есть. Ловим её отдельно, по числу открывающих пар. */
+    const opens = (s.match(/\{\{/g) || []).length;
+    const pairs = (s.match(TPL_RE) || []).length;
+    if (opens !== pairs) errs.push(`${at}: «{{» без закрывающей пары или дурное имя`);
+  };
+
+  WEEKS.forEach(w => w.tasks.forEach((x, i) => scan(x, `W${w.w}[${i}]`)));
+  WEEKS.forEach(w => scan(w.deliverable, `W${w.w}.deliverable`));
+  DAILY.forEach(b => { scan(b.name, `daily.${b.id}.name`); scan(b.desc, `daily.${b.id}.desc`); });
+
+  applied.forEach((tasks, i) => tasks.forEach((x, j) => {
+    if (String(x).indexOf('{{') !== -1) {
+      errs.push(`W${i + 1}[${j}]: подстановка не сработала — в готовом тексте осталось «{{»`);
+    }
+  }));
+
+  if (errs.length) fail('шаблоны не сходятся:\n  ' + errs.join('\n  '));
+  return seen;
+}
+
 /* ── 6. Режимы ──────────────────────────────────────────────── */
 const data = await readData();
 const stat = verify(data);
+const keys = checkTemplates(data.WEEKS, data.DAILY, data.vars, data.applied);
+const seams = personalSeams(data.WEEKS);
+if (seams.length) {
+  fail('в задачах трека осталось личное: ' + [...new Set(seams)].join(' ') +
+       '\n  Трек и человек разделены (§13.2 шаг 2), и обратно личное не возвращается.\n' +
+       '  Если это ложное срабатывание — правь список маркеров осознанно, а не задачу.');
+}
 const lit = sqlLiteral(pack(data));
 const stmt = statement(lit);
-const seams = personalSeams(data.WEEKS);
 
 if (mode === 'print') {
   ok(`${stat.N} недель, ${stat.tasks} задач, ${stat.sum.toFixed(1)} ч — производные сошлись`);
-  console.error(`  личное внутри задач: ${seams.length} шт (${[...new Set(seams)].join(' ')}) — §13.2 шаг 2`);
+  console.error(`  подстановок в треке: ${keys.size} имён (${[...keys].sort().join(' ')})`);
+  console.error(`  личного внутри задач: 0`);
   console.error(`  литерал: ${Buffer.byteLength(lit, 'utf8')} байт`);
   console.log(stmt);
   process.exit(0);
@@ -270,7 +378,5 @@ if (have !== stmt) {
        '  Это ровно та мина из §12.1: производные посчитаны заново, а блоб остался старым.\n' +
        '  Починка: node tools/seed-content.mjs --write');
 }
-ok(`seed-content совпадает с кодом: ${stat.N} недель, ${stat.tasks} задач`);
-if (seams.length) {
-  console.log(`  личного внутри задач: ${seams.length} шт — трек и человек ещё не разделены (§13.2)`);
-}
+ok(`seed-content совпадает с кодом: ${stat.N} недель, ${stat.tasks} задач, v${VERSION}`);
+console.log(`  подстановок: ${keys.size} имён, личного внутри задач: 0 (§13.2 шаг 2)`);

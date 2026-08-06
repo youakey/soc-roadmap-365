@@ -54,10 +54,10 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="SOC 365">
 <meta name="robots" content="noindex, nofollow">
-<link rel="manifest" href="manifest.webmanifest?v=33">
-<link rel="apple-touch-icon" href="icon.svg?v=33">
-<link rel="icon" href="icon.svg?v=33" type="image/svg+xml">
-<link rel="stylesheet" href="styles.css?v=33">
+<link rel="manifest" href="manifest.webmanifest?v=34">
+<link rel="apple-touch-icon" href="icon.svg?v=34">
+<link rel="icon" href="icon.svg?v=34" type="image/svg+xml">
+<link rel="stylesheet" href="styles.css?v=34">
 </head>
 <body>
 
@@ -146,7 +146,7 @@
 
 <!-- Первым: фреймбастер должен сработать до отрисовки, а хелперы
      экранирования нужны раньше любого рендеринга. -->
-<script src="security.js?v=33"></script>
+<script src="security.js?v=34"></script>
 
 <!-- ЕДИНСТВЕННАЯ ВНЕШНЯЯ ЗАВИСИМОСТЬ — запинена и закрыта хэшем.
 
@@ -166,9 +166,10 @@
         integrity="sha384-fPWur1rx/DE6YtXP/x0MD6dd90RgnVsz5yX/DIg7CcVAnTBZsENWuIcpvVTM39ti"
         crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 
-<script src="config.js?v=33"></script>
-<script src="data-weeks.js?v=33"></script>
-<script src="data.js?v=33"></script>
+<script src="config.js?v=34"></script>
+<script src="data-weeks.js?v=34"></script>
+<script src="data.js?v=34"></script>
+<script src="person.js?v=34"></script>
 <!-- Содержание трека (§3.2) — сразу после данных и до store.js:
      он подменяет WEEKS, META, QUARTERS, DAILY, DAY_VARIANTS
      и MILESTONES по месту тем, что лежит в roadmaps.content.
@@ -176,24 +177,24 @@
      происходит в openApp(), после выбора трека и до первой отрисовки.
      Два файла выше остаются в проекте как офлайн-запас — истиной
      они быть перестали. -->
-<script src="content.js?v=33"></script>
-<script src="store.js?v=33"></script>
-<script src="auth.js?v=33"></script>
-<script src="sync.js?v=33"></script>
-<script src="vocab.js?v=33"></script>
+<script src="content.js?v=34"></script>
+<script src="store.js?v=34"></script>
+<script src="auth.js?v=34"></script>
+<script src="sync.js?v=34"></script>
+<script src="vocab.js?v=34"></script>
 <!-- Звук (§12.5) — до app.js: его обработчики зовут Sound напрямую.
      Файлов не грузит и AudioContext при загрузке НЕ создаёт: контекст
      родится только внутри настоящего нажатия, иначе iOS отдаст
      молчащий. По той же причине media-src в CSP остаётся 'none'. -->
-<script src="sound.js?v=33"></script>
+<script src="sound.js?v=34"></script>
 <!-- Спецэффекты (§12.6) — после sound.js: глитч пускает картинку
      и звук из одного места, чтобы они не разъехались во времени.
      До app.js: его обработчики зовут Fx напрямую. Ни одного
      полноэкранного слоя при загрузке не создаёт. -->
-<script src="fx.js?v=33"></script>
+<script src="fx.js?v=34"></script>
 <!-- Zero (§12.3) — до app.js: rToday() зовёт Zero.html() при первой же
      отрисовке. Сам виджет наружу не ходит и connect-src не трогает. -->
-<script src="zero.js?v=33"></script>
-<script src="app.js?v=33"></script>
+<script src="zero.js?v=34"></script>
+<script src="app.js?v=34"></script>
 </body>
 </html>

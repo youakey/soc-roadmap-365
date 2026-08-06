@@ -111,7 +111,7 @@ const Zero = {
        с клиентом и серверной границей streak (§12.1-ter). */
     const sess = META.sessionWeeks.indexOf(cw) !== -1;
     const blocks = sess
-      ? DAILY.filter(b => b.id === 'polish' || b.id === 'english' || b.id === 'lab')
+      ? Content.dayBlocks(true)
       : DAILY;
     const bmin = b => (b.id === 'lab' && sess) ? 35 : b.min;
     const rec = own(Store.d.days, today, null) || {};

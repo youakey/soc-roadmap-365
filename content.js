@@ -164,6 +164,20 @@ const Content = {
       sessionWeeks.push(n);
     }
 
+    /* Блоки, остающиеся в режиме сессии. Раньше эта тройка была зашита
+       в app.js, и §3.2-bis назвала её швом. Теперь она в содержании,
+       и каждый её элемент обязан ссылаться на существующий блок дня:
+       опечатка здесь означала бы session mode без единого блока —
+       молча, без ошибки в консоли. Проверяется ниже, когда разобран
+       `daily`: раньше просто не с чем сверять. */
+    const rb = own(rm, 'sessionBlocks', null);
+    if (!Array.isArray(rb) || !rb.length) return bad('meta.sessionBlocks не массив');
+    const sessionBlocks = [];
+    for (const id of rb) {
+      if (typeof id !== 'string' || !/^[a-z][a-z0-9_]{0,31}$/.test(id)) return bad(`sessionBlocks: дурной id «${id}»`);
+      sessionBlocks.push(id);
+    }
+
     const re = own(rm, 'examWeeks', null);
     if (!re || typeof re !== 'object' || Array.isArray(re)) return bad('meta.examWeeks не объект');
     const examWeeks = {};
@@ -223,6 +237,11 @@ const Content = {
       if (name === null || !name || desc === null) return bad(`daily «${id}»: подписи`);
       daily.push({ id, name, min, desc });
     }
+    for (const id of sessionBlocks) {
+      if (!Object.prototype.hasOwnProperty.call(seen, id)) {
+        return bad(`sessionBlocks: блока «${id}» нет в daily`);
+      }
+    }
 
     /* ── варианты дня ── */
     const rv = own(raw, 'dayVariants', null);
@@ -266,7 +285,7 @@ const Content = {
       milestones.push({ w, date, name, test, targets });
     }
 
-    return { weeks, meta: { start, end, totalHours, weeklyHours, sessionWeeks, examWeeks }, quarters, daily, dayVariants, milestones };
+    return { weeks, meta: { start, end, totalHours, weeklyHours, sessionWeeks, sessionBlocks, examWeeks }, quarters, daily, dayVariants, milestones };
   },
 
   /* ── Подстановка ──────────────────────────────────────────
@@ -290,6 +309,22 @@ const Content = {
 
     MILESTONES.length = 0;
     c.milestones.forEach(m => MILESTONES.push(m));
+  },
+
+  /* ── Блоки дня для текущего режима ────────────────────────
+     Одно место на весь проект, и это не вкусовщина. Тройка
+     `['polish','english','lab']` была зашита ДВАЖДЫ — в app.js
+     и в zero.js, — и §12.1-ter уже заплатила ровно за это:
+     правило обхода поправили в одной функции и забыли в другой,
+     получив два правдоподобных ответа и ни одной ошибки.
+
+     Пустой список означал бы день из нуля блоков — молча. Поэтому
+     на пустом отдаём все: недосказанность лучше пустоты. */
+  dayBlocks(sess) {
+    if (!sess) return DAILY.slice();
+    const ids = Array.isArray(META.sessionBlocks) ? META.sessionBlocks : [];
+    const out = DAILY.filter(b => ids.indexOf(b.id) !== -1);
+    return out.length ? out : DAILY.slice();
   },
 
   /* ── Загрузка ─────────────────────────────────────────────

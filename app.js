@@ -307,7 +307,7 @@ function rToday() {
   const w = WEEKS[cw - 1];
   const st = Store.week(cw);
   const sess = META.sessionWeeks.includes(cw);
-  const blocks = sess ? DAILY.filter(b => ['polish','english','lab'].includes(b.id)) : DAILY;
+  const blocks = Content.dayBlocks(sess);
   const goalMin = blocks.reduce((s, b) => s + (b.id === 'lab' && sess ? 35 : b.min), 0);
   const doneMin = blocks.reduce((s, b) => s + ((Store.d.days[today] || {})[b.id] ? (b.id === 'lab' && sess ? 35 : b.min) : 0), 0);
   const dow = new Date().getDay();
@@ -321,13 +321,13 @@ function rToday() {
     h += card(`<div class="row" style="gap:14px">
       <div style="color:var(--cyan)">${ICONS.rocket}</div>
       <div><b>Старт ${fmtRU(META.start)}</b>
-      <p class="muted sm" style="margin:2px 0 0">Осталось ${daysBetween(today, META.start)} дн. Пока можно закрыть W1 заранее: поставить SSD в ASUS и развернуть гипервизор.</p></div></div>`);
+      <p class="muted sm" style="margin:2px 0 0">Осталось ${daysBetween(today, META.start)} дн. Пока можно закрыть W1 заранее: подготовить ${esc(Person.vars().lab)} и развернуть гипервизор.</p></div></div>`);
   }
 
   /* дневной чеклист */
   h += `<div class="card">
     <div class="card-t">
-      <div><h3>Чеклист дня</h3><div class="tiny dim">${weekend ? 'Выходной — по плану отдых. Но если хочется, никто не мешает.' : 'Пн–Пт · ' + (sess ? 'SESSION MODE, 1 час' : '3 часа')}</div></div>
+      <div><h3>Чеклист дня</h3><div class="tiny dim">${weekend ? 'Выходной — по плану отдых. Но если хочется, никто не мешает.' : esc(Person.vars().days) + ' дн/нед · ' + (sess ? 'SESSION MODE, 1 час' : esc(Person.vars().hours) + ' ч')}</div></div>
       <span class="pill ${doneMin >= goalMin ? 'ok' : ''}">${fmtMin(doneMin)} / ${fmtMin(goalMin)}</span>
     </div>
     <div class="bar" style="margin-bottom:14px"><i style="width:${Math.round(doneMin / goalMin * 100)}%"></i></div>
@@ -418,7 +418,7 @@ function rToday() {
   h += streakCard();
 
   /* правило дня */
-  const rule = RULES[dayOfYear() % RULES.length];
+  const rule = RULES[dayOfYear() % RULES.length] || { name: '', text: '' };
   h += `<div class="card mt2" style="border-color:color-mix(in srgb, var(--accent) 30%, transparent)">
     <div class="tiny" style="color:var(--accent);font-weight:700;text-transform:uppercase;letter-spacing:.05em">Правило дня</div>
     <h3 style="margin:5px 0 4px">${esc(rule.name)}</h3>
@@ -1550,7 +1550,7 @@ function rYear() {
 
   h += `<div class="section-h"><h2>RED FLAGS</h2><span class="rule"></span></div><div class="card">
     <p class="sm muted">Два и более признака дольше 2 недель — снижай нагрузку до session mode и восстанавливайся.</p>
-    ${RED_FLAGS.map(f => `<div class="sm" style="padding:5px 0;border-bottom:1px solid var(--border)">· ${esc(f)}</div>`).join('')}
+    ${RED_FLAGS.map(f => `<div class="sm" style="padding:5px 0;border-bottom:1px solid var(--border)">· ${esc(f.t)}</div>`).join('')}
     <p class="tiny dim mt" style="margin-bottom:0">Год — это долго. План на 75% за 52 недели кратно лучше плана на 120% за 14 недель и брошенного.</p></div>`;
 
   $('#v-year').innerHTML = h;
@@ -1801,11 +1801,11 @@ function rCareer() {
 
   h += `<div class="section-h"><h2>CV</h2><span class="rule"></span></div>
     <details class="acc"><summary><span>Структура CV — 1 страница</span></summary>
-      <div><pre class="code">${esc(CV_TEXT)}</pre>
+      <div><pre class="code">${esc(PERSON_OUT.cv)}</pre>
       <div class="mt">${CV_RULES.map(r => `<div class="sm" style="padding:4px 0">· ${esc(r)}</div>`).join('')}</div>
       <button class="btn sm mt" data-copy="cv">COPY</button></div></details>
     <details class="acc"><summary><span>Холодное письмо</span></summary>
-      <div><pre class="code">${esc(COLD_EMAIL)}</pre>
+      <div><pre class="code">${esc(PERSON_OUT.email)}</pre>
       <p class="tiny dim mt">Работает за счёт конкретики вместо «хочу развиваться», честного признания отсутствия вакансии и упоминания готовности к ночным сменам — там дыра в укомплектованности любого SOC.</p>
       <button class="btn sm" data-copy="mail">COPY</button></div></details>`;
 
@@ -1833,7 +1833,7 @@ function rCareer() {
   $('#addApp').onclick = addAppPrompt;
   bindApps();
   $$('[data-copy]').forEach(b => b.onclick = () => {
-    const txt = b.dataset.copy === 'cv' ? CV_TEXT : COLD_EMAIL;
+    const txt = b.dataset.copy === 'cv' ? PERSON_OUT.cv : PERSON_OUT.email;
     navigator.clipboard.writeText(txt).then(() => toast('Скопировано'), () => toast('Не удалось скопировать'));
   });
 }
@@ -1864,10 +1864,25 @@ function bindApps() {
     Store.updApp(+s.dataset.appst, { status: s.value }); Sync.schedule(); toast('Сохранено'); rCareer();
   });
 }
+/** Категории откликов: текущие плюс те, что уже лежат в сохранённых
+ *  откликах. Категория — хранимое значение (§3.8), и человек, сменивший
+ *  город, иначе осиротил бы старые записи: они остались бы с категорией,
+ *  которой больше нет в списке выбора. Объединение стоит одну строку
+ *  и закрывает это целиком. */
+function appCats() {
+  const out = APP_CATEGORIES.slice();
+  (Store.d.apps || []).forEach(a => {
+    const c = a && typeof a.cat === 'string' ? a.cat : '';
+    if (c && out.indexOf(c) === -1) out.push(c);
+  });
+  return out;
+}
+
 function addAppPrompt() {
   const company = prompt('Компания:'); if (!company) return;
   const role = prompt('Позиция:', 'Junior SOC Analyst') || '';
-  const cat = prompt('Категория:\n' + APP_CATEGORIES.join(' / '), APP_CATEGORIES[0]) || APP_CATEGORIES[0];
+  const cats = appCats();
+  const cat = prompt('Категория:\n' + cats.join(' / '), cats[0]) || cats[0];
   const note = prompt('Заметка (необязательно):') || '';
   Store.addApp({ company, role, cat, note, status: 'Отправлен' });
   achCheck();                                     // «первый отклик отправлен»
@@ -1922,7 +1937,50 @@ function settingsHtml() {
       </span>
     </div>`;
 
-  return `<div class="section-h"><h2>SECTIONS</h2><span class="rule"></span></div>
+  /* PROFILE (§13.2 шаг 2). Место выбрано не «потому что удобно»:
+     SETTINGS — единственный экран, где уже живут вещи, которые
+     человек настраивает под себя и один раз. Отдельная вкладка
+     стоила бы седьмого пункта в таббаре, а он и так на пределе
+     по ширине (§12.2-bis).
+
+     Подписи латиницей и коротко (§3.8), объяснений устройства нет:
+     под каждым полем — что туда писать, а не почему поле существует.
+     Пустое поле показывает своё умолчание placeholder'ом, поэтому
+     незаполненная анкета выглядит как заполненная бледно, а не
+     как поломка. */
+  const pv = Person.vars();
+  const prow = f => {
+    const v = Person.val(f.id);
+    if (f.type === 'bool') {
+      return `<div class="set-row">
+        <span class="set-name">${esc(f.label)}<small class="tiny dim" style="display:block;font-weight:400">${esc(f.hint)}</small></span>
+        <button class="btn sm sw${v ? ' on' : ''}" data-pf="${esc(f.id)}" role="switch"
+                aria-checked="${v ? 'true' : 'false'}">${v ? 'ON' : 'OFF'}</button>
+      </div>`;
+    }
+    if (f.type === 'sel') {
+      return `<label class="fld"><span>${esc(f.label)} — ${esc(f.hint)}</span>
+        <select data-pf="${esc(f.id)}">${f.opts.map(o =>
+          `<option value="${esc(o)}"${o === v ? ' selected' : ''}>${esc(own(OS_LABEL, o, o))}</option>`).join('')}</select></label>`;
+    }
+    if (f.type === 'num') {
+      return `<label class="fld"><span>${esc(f.label)} — ${esc(f.hint)}</span>
+        <input type="number" inputmode="numeric" min="${f.min}" max="${f.max}"
+               value="${esc(String(v))}" data-pf="${esc(f.id)}"></label>`;
+    }
+    return `<label class="fld"><span>${esc(f.label)} — ${esc(f.hint)}</span>
+      <input type="text" maxlength="${f.max}" value="${esc(String(v))}"
+             data-pf="${esc(f.id)}" placeholder="${esc(own(pv, f.id, ''))}"></label>`;
+  };
+
+  const profile = `<div class="grid g2">${
+    PERSON_FIELDS.filter(f => f.type !== 'bool').map(prow).join('')}</div>${
+    PERSON_FIELDS.filter(f => f.type === 'bool').map(prow).join('')}
+    <p class="tiny dim" style="margin:10px 0 0">Ресурс времени — ${esc(pv.weekly)} ч/нед против ${META.weeklyHours} ч/нед по плану трека.</p>`;
+
+  return `<div class="section-h"><h2>PROFILE</h2><span class="rule"></span></div>
+    <div class="card">${profile}</div>
+    <div class="section-h"><h2>SECTIONS</h2><span class="rule"></span></div>
     <div class="card">${rows}</div>
     <div class="section-h"><h2>SOUND</h2><span class="rule"></span></div>
     <div class="card">${sound}</div>`;
@@ -1932,6 +1990,36 @@ function settingsHtml() {
  *  иначе копия из MORE и копия из вкладки перехватят кнопки друг друга. */
 function wireSettings(root) {
   if (!root) return;
+
+  /* PROFILE. Правка параметра пересобирает трек и перерисовывает всё:
+     задачи недель, карточку железа, карту рынка и подписи блоков дня
+     считаются от этих значений, и показывать половину пересчитанного —
+     это ровно та молчаливая рассинхронизация, за которую платили
+     в §12.1-ter.
+
+     Текстовые поля слушают `input`, а не `change`: иначе значение
+     доезжает только по уходу фокуса, и человек, закрывший вкладку
+     сразу после ввода, теряет его. Отправка в облако отложена
+     на полторы секунды — иначе запрос на каждую букву. */
+  const repaint = commit => {
+    applyPerson();
+    if (commit) Person.schedule(Auth.sb, Auth.user);
+    renderAll();
+  };
+  root.querySelectorAll('[data-pf]').forEach(el => {
+    const id = el.dataset.pf;
+    if (el.tagName === 'BUTTON') {
+      el.onclick = () => { Person.set(id, own(Person.p || {}, id, false) !== true); repaint(true); buzz(10); };
+      return;
+    }
+    if (el.tagName === 'SELECT') { el.onchange = () => { Person.set(id, el.value); repaint(true); }; return; }
+    if (el.type === 'number') { el.onchange = () => { Person.set(id, el.value); repaint(true); }; return; }
+    /* Пересборка на каждую букву перерисовала бы поле и увела фокус.
+       Поэтому набор только сохраняется, а пересчёт — по уходу фокуса. */
+    el.oninput = () => { Person.set(id, el.value); Person.schedule(Auth.sb, Auth.user); };
+    el.onchange = () => { Person.set(id, el.value); repaint(true); };
+  });
+
   root.querySelectorAll('[data-hide]').forEach(b => b.onclick = () => {
     const id = b.dataset.hide;
     if (!Store.setHidden(id, !Store.hidden(id))) return;
@@ -2032,7 +2120,7 @@ function rMore() {
     h += `<div class="card wk q${l.q}">
       <div class="card-t"><h3>${QUARTERS[l.q].code} · English → ${l.target}</h3><span class="pill q${l.q}">${QUARTERS[l.q].range}</span></div>
       <p class="sm muted" style="margin:0 0 8px">${esc(l.en)}</p>
-      <p class="tiny dim" style="margin:0 0 10px">PL · ${esc(l.pl)}</p>
+      ${Person.cond('lang2') ? `<p class="tiny dim" style="margin:0 0 10px">${esc(l.pl)}</p>` : ''}
       <div class="grid g2">
         <label class="fld" style="margin:0"><span>EF SET</span>
           <input type="text" value="${esc(s.efset)}" data-lang="${l.q}" data-lk="efset" placeholder="${l.target}"></label>
@@ -2066,8 +2154,8 @@ function rMore() {
       <p class="sm muted">${esc(hw.text)}</p>
       <p class="tiny dim" style="margin:0"><b>Роль:</b> ${esc(hw.use)}</p></div>`;
   });
-  h += `<details class="acc"><summary><span>Установка стека на MacBook (W1)</span></summary>
-    <div><pre class="code">${esc(SETUP_CMD)}</pre></div></details>`;
+  h += `<details class="acc"><summary><span>Установка стека (W1) · ${esc(Person.vars().os)}</span></summary>
+    <div><pre class="code">${esc(PERSON_OUT.setup)}</pre></div></details>`;
 
   h += `<div class="section-h"><h2>CHEATSHEET</h2><span class="rule"></span></div>`;
   h += `<details class="acc"><summary><span>Команды наизусть к W52</span></summary><div>
@@ -2102,7 +2190,8 @@ function rMore() {
       <div class="row" style="justify-content:space-between"><b>${esc(c.name)}</b><span class="pill">${esc(c.cost)}</span></div>
       <div class="tiny" style="margin-top:3px">${esc(c.verdict)}</div>
       <div class="tiny dim">+ ${esc(c.pro)}</div><div class="tiny dim">− ${esc(c.con)}</div></div>`).join('')}
-    <p class="tiny mt" style="color:var(--amber)">${esc(BUDGET.note)}</p></div></details>`;
+    <p class="tiny mt" style="color:var(--amber)">${esc(BUDGET.note)}</p>
+    ${BUDGET_TEXT.map(b => `<p class="tiny dim" style="margin:6px 0 0">${esc(b.t)}</p>`).join('')}</div></details>`;
 
   h += `<div class="section-h"><h2>RULES</h2><span class="rule"></span></div><div class="card">
     ${RULES.map(r => `<div style="padding:9px 0;border-bottom:1px solid var(--border)">
@@ -2351,6 +2440,16 @@ async function openApp(note) {
      Не бросает никогда — без базы работаем на встроенном содержании,
      офлайн для этого приложения нормальный режим (§10). */
   await Content.load(Auth.sb, ROADMAP);
+  /* Параметры человека — сразу за содержанием и до всего остального
+     (§13.2 шаг 2). Порядок обязателен: `applyPerson()` подставляет
+     их в задачи недель по месту, а недели к этому моменту уже могли
+     приехать из базы. Сделать наоборот значило бы подставить в трек
+     из `data-weeks.js`, а потом заменить его базой — и увидеть
+     на экране шаблоны `{{lab}}` вместо своей машины.
+     `reseat` говорит `applyPerson()`, что сырьё сменилось: недель
+     столько же, и по длине подмену не поймать (§12.5-bis). */
+  await Person.load(Auth.sb, Auth.user);
+  applyPerson(true);
   await Sync.init();
   /* Словарь поднимается отдельно от прогресса: он в своей таблице.
      Ошибку глотаем намеренно — офлайн это нормальный режим захвата,
