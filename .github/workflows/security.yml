@@ -92,11 +92,11 @@ jobs:
             eslint@9.13.0 eslint-plugin-security@3.0.1
           # Сначала прогон с показом предупреждений — он нужен как отчёт в логе.
           npx eslint --config eslint.config.mjs \
-            app.js auth.js store.js sync.js vocab.js zero.js sound.js fx.js config.js security.js data.js data-weeks.js tools/*.mjs \
+            app.js auth.js store.js sync.js vocab.js zero.js sound.js fx.js content.js config.js security.js data.js data-weeks.js tools/*.mjs \
             --max-warnings 400 || true
           # Затем прогон, который валит сборку на ошибках (правила из блока error).
           npx eslint --config eslint.config.mjs \
-            app.js auth.js store.js sync.js vocab.js zero.js sound.js fx.js config.js security.js tools/*.mjs
+            app.js auth.js store.js sync.js vocab.js zero.js sound.js fx.js content.js config.js security.js tools/*.mjs
 
       # ── 6. Таббар не отклеится снова ────────────────────────
       # Баг кусал дважды: transform на #app делает его containing block
@@ -171,3 +171,36 @@ jobs:
           # ту же мину, из-за которой таббар уезжал дважды.
           grep -q 'document.body.appendChild' fx.js || { echo "::error::экран загрузки больше не в body"; exit 1; }
           echo "Эффекты на месте."
+
+      # ── 10. Сид содержания трека не разошёлся с кодом ───────
+      # §3.2: 52 недели переехали в roadmaps.content, а блок 11
+      # supabase.sql сеет их на чистом проекте. Блоб там генерируется
+      # из data-weeks.js и data.js — и разойтись с ними может молча:
+      # правку недели видно в репозитории, а старый сид на новом
+      # проекте не видно вовсе. Скрипт заодно пересчитывает восемь
+      # производных дат вкладки YEAR (§12.1-bis) и краснеет, если
+      # подпись квартала разъехалась с границами недель.
+      - name: Сид содержания сверен с кодом
+        run: node tools/seed-content.mjs --check
+
+      # ── 11. Клиент не пишет в содержание общего трека ───────
+      # §11.1: клиент не граница безопасности. Содержание трека видят
+      # все вошедшие, поэтому запись в roadmaps из браузера закрыта
+      # на уровне RLS (блок 9.5) — и попытка её обойти должна ловиться
+      # здесь, а не обнаруживаться подменённым треком у всех сразу.
+      - name: Содержание трека только на чтение
+        run: |
+          set -uo pipefail
+          # Обращение к таблице переносится на следующую строку, поэтому
+          # смотрим окно, а не строку: grep по одной строке эту запись
+          # просто не увидел бы. Ловим глагол записи в двух строках после.
+          if grep -A 2 -nE "from\('roadmaps'\)" -- *.js \
+             | grep -nE "\.(update|upsert|insert|delete)\("; then
+            echo "::error::клиент пишет в roadmaps. Содержание общего трека правит владелец из SQL Editor, см. §3.2-bis и блок 9.5."
+            exit 1
+          fi
+          if grep -nE "\.(update|upsert|insert|delete)\(" content.js; then
+            echo "::error::content.js что-то пишет. Он только читает, см. §3.2-bis."
+            exit 1
+          fi
+          echo "Содержание трека на чтение."
