@@ -321,7 +321,7 @@ function rToday() {
     h += card(`<div class="row" style="gap:14px">
       <div style="color:var(--cyan)">${ICONS.rocket}</div>
       <div><b>Старт ${fmtRU(META.start)}</b>
-      <p class="muted sm" style="margin:2px 0 0">Осталось ${daysBetween(today, META.start)} дн. Пока можно закрыть W1 заранее: подготовить ${esc(Person.vars().lab)} и развернуть гипервизор.</p></div></div>`);
+      <p class="muted sm" style="margin:2px 0 0">Осталось ${daysBetween(today, META.start)} дн. Пока можно закрыть W1 заранее — железо: ${esc(Person.vars().lab)}, дальше гипервизор.</p></div></div>`);
   }
 
   /* дневной чеклист */

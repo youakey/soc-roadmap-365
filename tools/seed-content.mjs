@@ -103,8 +103,13 @@ async function readData() {
   vm.runInContext(shim + '\n;\n' + personSrc, ctx, { filename: 'person.js', timeout: 5000 });
   const vars = vm.runInContext('Person.vars()', ctx);
   const applied = vm.runInContext('WEEKS.map(w => w.tasks.slice())', ctx);
+  const raws = vm.runInContext(`({
+    HARDWARE_RAW, MARKET_RAW, OUTCOMES_RAW, LANGS_RAW, RULES_RAW,
+    RED_FLAGS_RAW, APP_CATEGORIES_RAW, BUDGET_TEXT_RAW,
+    CV_TEXT_RAW, COLD_EMAIL_RAW
+  })`, ctx);
 
-  return { ...snap, vars, applied };
+  return { ...snap, vars, applied, raws };
 }
 
 /* ── 2. Производные, которые обязаны сойтись ────────────────
@@ -320,13 +325,22 @@ const NOUNS = ['daily', 'lab', 'city', 'hub', 'abroad', 'edu', 'employers', 'boa
    и выходит «на повседневная машина». Найдено на живом сайте уже после
    выкладки, поэтому проверка и появилась: гадать про падеж нечем,
    предложение надо строить так, чтобы падеж от подстановки не зависел. */
-const PREP = /(?:^|[\s(])(на|в|во|с|со|из|для|по|о|об|к|ко|у|от|до|при|под|над|за|без|про)\s+$/i;
+const PREP = /(?:^|[\s(])(на|в|во|с|со|из|для|по|о|об|к|ко|у|от|до|при|под|над|за|без|про|через|между|перед)\s+$/i;
 
-function checkTemplates(WEEKS, DAILY, vars, applied) {
+function checkTemplates(WEEKS, DAILY, vars, applied, raws) {
   const errs = [];
   const seen = new Set();
 
-  const scan = (s, at) => {
+  /* Рекурсия по любому шаблону: массив, объект, строка. */
+  function walk(node, at) {
+    if (typeof node === 'string') { scan(node, at); return; }
+    if (Array.isArray(node)) { node.forEach((x, i) => walk(x, `${at}[${i}]`)); return; }
+    if (node && typeof node === 'object') {
+      Object.keys(node).forEach(k => walk(node[k], `${at}.${k}`));
+    }
+  }
+
+  function scan(s, at) {
     if (typeof s !== 'string') return;
     for (const m of s.matchAll(TPL_RE)) {
       seen.add(m[1]);
@@ -344,11 +358,17 @@ function checkTemplates(WEEKS, DAILY, vars, applied) {
     const opens = (s.match(/\{\{/g) || []).length;
     const pairs = (s.match(TPL_RE) || []).length;
     if (opens !== pairs) errs.push(`${at}: «{{» без закрывающей пары или дурное имя`);
-  };
+  }
 
   WEEKS.forEach(w => w.tasks.forEach((x, i) => scan(x, `W${w.w}[${i}]`)));
   WEEKS.forEach(w => scan(w.deliverable, `W${w.w}.deliverable`));
   DAILY.forEach(b => { scan(b.name, `daily.${b.id}.name`); scan(b.desc, `daily.${b.id}.desc`); });
+
+  /* Шаблоны в data.js — та же беда и тот же разбор. Первая версия
+     проверки смотрела только содержание трека, и предлог спокойно
+     дожил до экрана в карте рынка. Проверять надо ВСЕ шаблоны,
+     а не те, что попадают в базу. */
+  Object.keys(raws).forEach(name => walk(raws[name], name));
 
   applied.forEach((tasks, i) => tasks.forEach((x, j) => {
     if (String(x).indexOf('{{') !== -1) {
@@ -363,7 +383,7 @@ function checkTemplates(WEEKS, DAILY, vars, applied) {
 /* ── 6. Режимы ──────────────────────────────────────────────── */
 const data = await readData();
 const stat = verify(data);
-const keys = checkTemplates(data.WEEKS, data.DAILY, data.vars, data.applied);
+const keys = checkTemplates(data.WEEKS, data.DAILY, data.vars, data.applied, data.raws);
 const seams = personalSeams(data.WEEKS);
 if (seams.length) {
   fail('в задачах трека осталось личное: ' + [...new Set(seams)].join(' ') +
