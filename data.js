@@ -332,7 +332,7 @@ TryHackMe SOC Level 1 (completed)  |  LetsDefend: 30+ alerts, 85% accuracy
 Blue Team Labs Online: [rank]      |  Splunk BOTS v1 - full writeup
 
 EDUCATION
-{{edu}}, Information Security
+{{edu_en}}, Information Security
 
 LANGUAGES
 English - B1 (technical reading B2)
@@ -350,7 +350,7 @@ const COLD_EMAIL_RAW = `Тема: Junior SOC Analyst — собственная 
 
 Здравствуйте, [Имя адресата]!
 
-Меня зовут {{name}}, я учусь по специальности «Информационная
+Меня зовут {{name_short}}, я учусь по специальности «Информационная
 безопасность». Место учёбы: {{edu}}, город: {{city}}.
 
 За последний год я самостоятельно построил домашнюю SOC-лабораторию:
@@ -368,7 +368,7 @@ const COLD_EMAIL_RAW = `Тема: Junior SOC Analyst — собственная 
 Портфолио: github.com/[username] · Резюме во вложении.
 
 Спасибо за время,
-{{name}}, [телефон]`;
+{{name_short}}, [телефон]`;
 
 /* ХРАНИМЫЕ ЗНАЧЕНИЯ, как статусы недели (§3.8). Категория лежит
    в `Store.d.apps[].category` и уже сохранена у тех, кто вёл отклики.
