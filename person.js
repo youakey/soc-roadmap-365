@@ -132,6 +132,20 @@ const Person = {
   source: 'code',
   note: '',
 
+  /** Отметка СЕРВЕРА: `updated_at` той строки, которую этот браузер
+   *  считает уже уехавшей. Часы намеренно одни и чужие: триггер
+   *  `person_guard` переписывает `updated_at` своим `now()`, поэтому
+   *  местное время устройства с облачным несравнимо вовсе — браузер
+   *  с уехавшими часами выигрывал бы всегда, молча и правдоподобно.
+   *  Пусто — значит «не знаю, что на сервере». */
+  stamp: '',
+
+  /** Есть местные правки, которых сервер не подтверждал. Без этого
+   *  признака отметка времени делает хуже, а не лучше: правка,
+   *  сделанная без сети, оказалась бы «старее облака» и погибла бы
+   *  при первой же удачной загрузке. */
+  dirty: false,
+
   _timer: null,
   _raw: null,       // сырые шаблоны задач недель, снятые при первом apply
   _rawWeeks: 0,     // сколько недель было, когда их сняли
@@ -251,25 +265,41 @@ const Person = {
     return true;
   },
 
-  /* ── Хранение ───────────────────────────────────────────── */
+  /* ── Хранение ───────────────────────────────────────────────
+     Две формы записи, и старая обязана читаться. До 07.08.2026
+     в ключе лежал сам объект параметров; теперь — конверт
+     `{ k: 1, p, stamp, dirty }`. Запись без `k` считается старой:
+     параметры берутся, отметки нет, а «не знаю, что на сервере»
+     означает `dirty` — то есть ровно прежнее поведение, местное
+     побеждает. Регресса при обновлении клиента быть не должно. */
   loadLocal() {
     try {
       const raw = localStorage.getItem(PERSON_KEY);
       this.cached = !!raw;
-      this.p = this.parse(raw ? safeParse(raw) : null);
+      const box = raw ? safeParse(raw) : null;
+      const boxed = !!box && typeof box === 'object' && !Array.isArray(box) && own(box, 'k', 0) === 1;
+      this.p = this.parse(boxed ? own(box, 'p', null) : box);
+      const st = boxed ? own(box, 'stamp', '') : '';
+      this.stamp = typeof st === 'string' ? st.slice(0, 64) : '';
+      this.dirty = boxed ? own(box, 'dirty', true) === true : !!raw;
       this.source = raw ? 'local' : 'code';
     } catch (e) {
       console.warn('person: кеш не прочитан', e);
       this.p = this.defaults();
       this.cached = false;
+      this.stamp = '';
+      this.dirty = false;
       this.source = 'code';
     }
     return this.p;
   },
 
   saveLocal() {
-    try { localStorage.setItem(PERSON_KEY, JSON.stringify(this.p)); return true; }
-    catch (e) { console.warn('person: кеш не записан', e); return false; }
+    try {
+      localStorage.setItem(PERSON_KEY, JSON.stringify(
+        { k: 1, p: this.p, stamp: this.stamp, dirty: this.dirty }));
+      return true;
+    } catch (e) { console.warn('person: кеш не записан', e); return false; }
   },
 
   /** Забрать из базы и слить. Не бросает никогда: офлайн для этого
@@ -281,20 +311,42 @@ const Person = {
     if (!sb || !user) { this.note = 'нет входа'; return this.source; }
     try {
       const { data, error } = await sb.from('person')
-        .select('params').eq('id', user.id).maybeSingle();
+        .select('params, updated_at').eq('id', user.id).maybeSingle();
       if (error) throw error;
-      /* Правило слияния — то же, что у настроек (§12.5-bis), и по той
-         же причине. На чистом устройстве побеждает облако, иначе
-         «параметры следуют за аккаунтом» пустые слова: умолчания
-         затрут введённое с другого ноутбука. На обжитом побеждает
-         местное, иначе первая же синхронизация вернёт город, который
-         человек только что исправил. Отличить одно от другого
-         по самому объекту нельзя — отсюда this.cached. */
-      if (data && data.params && !this.cached) {
-        this.p = this.parse(data.params);
+      const cloud = data ? own(data, 'params', null) : null;
+      const cs = data ? own(data, 'updated_at', '') : '';
+      const cstamp = typeof cs === 'string' ? cs : '';
+      if (!cloud || typeof cloud !== 'object') { this.note = 'на сервере параметров нет'; return this.source; }
+
+      /* Слияние ПООБЪЕКТНОЕ — по полям его делать нечем: сервер хранит
+         один jsonb и меток на поле там нет (§13.2-bis). Но «кто новее»
+         теперь спрашивается у сервера, а не решается по одному признаку
+         «обжитое устройство». Три случая, и все три обязаны быть
+         названы явно:
+
+         1. Устройство чистое (`!cached`) — побеждает облако. Иначе
+            «параметры следуют за аккаунтом» пустые слова: умолчания
+            затрут введённое с другого ноутбука.
+         2. Есть неотправленные правки (`dirty`) — побеждает местное.
+            Всегда и независимо от времени: человек только что это
+            напечатал, а облако его правки ещё не видело.
+         3. Иначе решает отметка сервера. Облако новее того, что этот
+            браузер отправлял сам, — значит правку сделали на другом
+            устройстве, и она свежее. Именно этот случай раньше терялся:
+            прежнее правило отдавало победу местному всегда.
+
+         Часы одни и серверные. Сравнение через `Date.parse`, а не
+         строкой: формат `updated_at` у PostgREST зависит от того,
+         есть ли дробная часть, и лексикографическое сравнение держится
+         на совпадении, а не на правиле. */
+      const takeCloud = !this.cached || (!this.dirty && this._newer(cstamp, this.stamp));
+      if (takeCloud) {
+        this.p = this.parse(cloud);
+        this.stamp = cstamp;
+        this.dirty = false;
         this.saveLocal();
         this.source = 'db';
-      } else if (data && data.params) {
+      } else {
         this.source = 'local';
       }
     } catch (e) {
@@ -304,6 +356,19 @@ const Person = {
     return this.source;
   },
 
+  /** Строго ли `a` позже `b`. Пустая отметка `b` означает «не знаю,
+   *  что на сервере», и тогда любое облако считается новее — иначе
+   *  устройство, обновившееся со старой формы кеша, не подхватило бы
+   *  облако никогда. Нечитаемая дата — не повод отдать победу:
+   *  «не знаю» здесь честнее, чем «наверное, новее». */
+  _newer(a, b) {
+    const ta = Date.parse(a);
+    if (!isFinite(ta)) return false;
+    if (!b) return true;
+    const tb = Date.parse(b);
+    return !isFinite(tb) ? false : ta > tb;
+  },
+
   /** Отложенная отправка: поля текстовые, иначе запрос на каждую букву. */
   schedule(sb, user) {
     if (!sb || !user) return;
@@ -311,15 +376,27 @@ const Person = {
     this._timer = setTimeout(() => this.push(sb, user), 1500);
   },
 
+  /** Отправка. `updated_at` НЕ шлётся: триггер `person_guard`
+   *  переписывает его своим `now()`, и посланное значение было бы
+   *  красивой ложью в запросе. Зато оно читается обратно — это
+   *  единственный способ узнать серверное время своей же записи
+   *  и заводить отметку по тем же часам, что у облака. */
   async push(sb, user) {
     if (!sb || !user) return false;
     try {
-      const { error } = await sb.from('person').upsert(
-        { id: user.id, params: this.p, updated_at: new Date().toISOString() },
-        { onConflict: 'id' });
+      const { data, error } = await sb.from('person')
+        .upsert({ id: user.id, params: this.p }, { onConflict: 'id' })
+        .select('updated_at').maybeSingle();
       if (error) throw error;
+      const st = data ? own(data, 'updated_at', '') : '';
+      if (typeof st === 'string' && st) this.stamp = st;
+      this.dirty = false;
+      this.saveLocal();
       return true;
     } catch (e) {
+      /* Не доехало — правка остаётся неотправленной, и это надо
+         помнить: без `dirty` следующая удачная загрузка сочла бы
+         облако новее и стёрла бы напечатанное без сети. */
       console.warn('person push', e && e.message ? e.message : e);
       return false;
     }
@@ -332,12 +409,14 @@ const Person = {
     one[id] = value;
     const clean = this.parse(Object.assign({}, this.p, one));
     this.p = clean;
+    this.dirty = true;                         // сервер этого ещё не видел
     this.saveLocal();
     return true;
   },
 
   reset() {
     this.p = this.defaults();
+    this.dirty = true;
     this.saveLocal();
   }
 };
