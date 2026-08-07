@@ -2270,21 +2270,100 @@ function rMore() {
 }
 
 /* ══════════════════ ТРЕКИ ══════════════════ */
-/* Контент трека пока живёт в data-weeks.js, но запись на трек уже
-   настоящая: строка в enrollments. Когда недели переедут в
-   roadmaps.content, экран выбора не придётся переделывать. */
+/* Запись на трек настоящая: строка в enrollments. Содержание трека
+   приезжает из roadmaps.content (§3.2-bis), а этот раздел отвечает
+   только за то, НА КАКОЙ трек человек записан.
+
+   Последний известный трек лежит в своём ключе localStorage, а НЕ
+   полем в `Store.d`, и это не обход правила «добавил поле — допиши
+   mergeState()». `Store.d` целиком уезжает в `progress.payload`,
+   а payload ключуется парой (user_id, roadmap_id): положить туда
+   «какой трек активен» значило бы завести запись, которая знает
+   про собственный ключ. Плюс истина об активном треке уже есть
+   на сервере — строка в `enrollments`; здесь нужен не второй
+   источник, а устройственный запас на случай, когда до сервера
+   не дотянуться.
+
+   Привязка к аккаунту обязательна. `ROADMAP` участвует в ключе
+   прогресса: подхваченный чужой трек орфанил бы прогресс молча —
+   ровно тем почерком, за который платили в §12.1. Поэтому в записи
+   лежит owner, и чужая запись не читается вовсе. */
+const TRACK_KEY = 'soc365.track.v1';
+
 const Tracks = {
   list: [],
   active: null,
+  /** Была ли база доступна при последней загрузке. Читают showPicker()
+   *  и openApp(): без сети человеку надо сказать, что он видит
+   *  сохранённое, а не пустоту. */
+  offline: false,
+  note: '',
 
+  _remember(userId, id) {
+    if (!userId || !id) return false;
+    try { localStorage.setItem(TRACK_KEY, JSON.stringify({ owner: userId, id })); return true; }
+    catch (e) { console.warn('tracks: последний трек не записан', e); return false; }
+  },
+
+  _recall(userId) {
+    if (!userId) return null;
+    try {
+      const raw = localStorage.getItem(TRACK_KEY);
+      const o = raw ? safeParse(raw) : null;
+      if (!o || typeof o !== 'object' || Array.isArray(o)) return null;
+      if (own(o, 'owner', null) !== userId) return null;   // чужой кеш не наш
+      const id = own(o, 'id', null);
+      return typeof id === 'string' && /^[a-z0-9][a-z0-9_-]{0,63}$/.test(id) ? id : null;
+    } catch (e) {
+      console.warn('tracks: последний трек не прочитан', e);
+      return null;
+    }
+  },
+
+  /** Список треков и активная запись. Не бросает: офлайн для этого
+   *  приложения рабочий режим (§10), а не сбой. */
   async load() {
-    const { data: rms } = await Auth.sb.from('roadmaps')
+    this.offline = false;
+    this.note = '';
+    const uid = Auth.user ? Auth.user.id : null;
+
+    /* `supabase-js` без сети НЕ бросает — он возвращает
+       `{ data: null, error }`. Прежний код читал один только `data`
+       и принимал «сети нет» за «треков нет»: список пустел, активной
+       записи не находилось, и человек вместо своего трекера видел
+       пустой экран выбора трека. Это разные случаи, и ответы у них
+       разные. Дефект жил с этапа A (§3.2-bis, долг 1). */
+    const rm = await Auth.sb.from('roadmaps')
       .select('id,title,subtitle,accent,icon,total_hours,total_weeks').order('sort');
-    this.list = rms || [];
-    const { data: ens } = await Auth.sb.from('enrollments')
-      .select('roadmap_id,is_active').eq('user_id', Auth.user.id);
-    const act = (ens || []).find(e => e.is_active);
+    const en = await Auth.sb.from('enrollments')
+      .select('roadmap_id,is_active').eq('user_id', uid);
+
+    /* Любая из двух ошибок — это «серверу не ответить». Различать их
+       тоньше нечем и незачем: половина ответа не лучше отсутствующего,
+       а решение в обоих случаях одно. */
+    const err = (rm && rm.error) || (en && en.error);
+    if (err) {
+      this.offline = true;
+      this.note = 'база недоступна: ' + (err.message || String(err));
+      this.list = [];
+      /* Последний известный трек — единственный способ поднять трекер
+         без сети. Нет его — показывать нечего: список треков живёт
+         на сервере, и придумать его здесь не из чего. */
+      this.active = this._recall(uid);
+      console.warn('tracks: ' + this.note + (this.active
+        ? ` — поднимаюсь на последнем известном треке «${this.active}»`
+        : ' — последнего трека на этом устройстве нет'));
+      return this.active;
+    }
+
+    this.list = (rm && rm.data) || [];
+    const act = ((en && en.data) || []).find(e => e.is_active);
     this.active = act ? act.roadmap_id : null;
+    /* Помним ТОЛЬКО подтверждённое сервером. Запомнить выбор, который
+       не доехал, значило бы завести на устройстве трек, которого нет
+       в `enrollments`, — и получить прогресс под ключом, которого
+       на сервере не существует. */
+    if (this.active) this._remember(uid, this.active);
     return this.active;
   },
 
@@ -2295,13 +2374,26 @@ const Tracks = {
     if (error) throw error;
     this.active = id;
     ROADMAP = id;
+    this._remember(Auth.user.id, id);
   }
 };
 
 function showPicker() {
   const box = $('#pickerBody');
   $('#picker').style.display = 'grid';
-  box.innerHTML = Tracks.list.map(t => `
+  /* Пустой экран выбора без объяснения — это и был дефект §3.2-bis.
+     Список треков живёт на сервере, придумать его здесь не из чего,
+     поэтому единственное честное действие — сказать, что произошло. */
+  const off = Tracks.offline
+    ? `<div class="track ghost">
+         <span class="track-txt">
+           <b>Нет связи с сервером</b>
+           <small>Список треков не загрузился, а сохранённого трека на этом
+           устройстве нет. Появится сеть — экран заполнится сам.</small>
+         </span>
+       </div>`
+    : '';
+  box.innerHTML = off + Tracks.list.map(t => `
     <button class="track hud" data-track="${esc(t.id)}">
       <span class="track-ic">${AV_SVG(t.icon || 'shield')}</span>
       <span class="track-txt">
@@ -2464,6 +2556,11 @@ async function openApp(note) {
   renderAll();
   decodeHeadings($('#v-' + VIEW));
   if (note) toast(note);
+  /* Без сети трекер поднялся на последнем известном треке и на
+     запасном содержании. Сказать об этом обязательно: молча
+     показанные вчерашние данные — это те же «два правдоподобных
+     числа», за которые платила §12.1-ter. */
+  else if (Tracks.offline) toast('Нет связи с сервером — трекер работает офлайн');
 
   /* «Канал открыт» — один раз за сессию. На восстановленной сессии
      не прозвучит вовсе: жеста не было, контекста нет, Sound молчит
