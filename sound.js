@@ -586,6 +586,128 @@ const Sound = {
     return true;
   },
 
+  /** ГУЛ ЗАСТАВКИ. Единственный НЕПРЕРЫВНЫЙ звук в проекте, и это
+   *  осознанное исключение из «источник звука — событие»: правило
+   *  писано против того, чтобы интерфейс трещал на каждой
+   *  перерисовке, а здесь звучит одно состояние — «идёт загрузка».
+   *  Оно начинается и кончается ровно один раз за сессию.
+   *
+   *  Три слоя, и каждый нужен:
+   *  · суб 38 Гц с медленным биением — то, что слышно грудью;
+   *  · пила 76 Гц через полосовой фильтр, который ездит вверх-вниз, —
+   *    «машина работает», а не «нота держится»;
+   *  · сонарные пинги раз в 620 мс — то, чем гул перестаёт быть
+   *    дроном и становится прибором.
+   *
+   *  Узлы держатся в `_hum` и снимаются В ОДНОМ месте. Осциллятор,
+   *  забытый включённым, — это гул до перезагрузки страницы,
+   *  и выключить его человеку будет нечем. */
+  _hum: null,
+
+  hum(on) {
+    if (!on) {
+      const h = this._hum;
+      this._hum = null;
+      if (!h) return false;
+      if (h.ping) clearInterval(h.ping);
+      const ctx = this.ctx;
+      if (ctx) {
+        /* Гасить рампой, а не обрывом: мгновенный обрыв даёт щелчок,
+           и он слышен громче самого гула. */
+        try {
+          h.g.gain.setTargetAtTime(0.0001, ctx.currentTime, 0.08);
+          h.o.forEach(o => o.stop(ctx.currentTime + 0.5));
+        } catch (e) { /* контекст уже закрыт */ }
+      }
+      return true;
+    }
+
+    if (this._hum) return false;
+    const ctx = this._live(SND.MARK); if (!ctx) return false;
+    const G = this._gain(SND.MARK); this._wet(0.5);
+    const t = ctx.currentTime;
+
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(Math.max(0.0005, 0.30 * G), t + 0.7);
+    g.connect(this.out);
+
+    const sub = ctx.createOscillator();
+    sub.type = 'sine'; sub.frequency.value = 38;
+    const sub2 = ctx.createOscillator();
+    sub2.type = 'sine'; sub2.frequency.value = 38.7;   // биение 0.7 Гц
+    const saw = ctx.createOscillator();
+    saw.type = 'sawtooth'; saw.frequency.value = 76;
+
+    const bp = ctx.createBiquadFilter();
+    bp.type = 'bandpass'; bp.Q.value = 5.5;
+    bp.frequency.setValueAtTime(220, t);
+    /* Полоса ездит сама по себе: без движения фильтра пила звучит
+       как гудок трансформатора, а не как работающая машина. */
+    const lfo = ctx.createOscillator();
+    lfo.type = 'sine'; lfo.frequency.value = 0.21;
+    const lfoG = ctx.createGain(); lfoG.gain.value = 170;
+    lfo.connect(lfoG); lfoG.connect(bp.frequency);
+
+    const sawG = ctx.createGain(); sawG.gain.value = 0.5;
+    saw.connect(bp); bp.connect(sawG); sawG.connect(g);
+    sub.connect(g); sub2.connect(g);
+
+    [sub, sub2, saw, lfo].forEach(o => o.start(t));
+
+    /* Сонарные пинги. setInterval здесь допустим и это НЕ нарушение
+       §3.7: он ничего не измеряет, он только пускает событие.
+       В фоновой вкладке его придушат — и это ровно то, чего хочется. */
+    const ping = setInterval(() => {
+      if (!this._hum) return;
+      const c2 = this._live(SND.MARK); if (!c2) return;
+      const G2 = this._gain(SND.MARK);
+      this._tone({ f: 1568, f2: 1046.5, dur: 0.22, type: 'sine', g: 0.055, lvlGain: G2 });
+      this._tone({ f: 3136, dur: 0.06, type: 'sine', g: 0.02, lvlGain: G2 });
+    }, 620);
+
+    this._hum = { g: g, o: [sub, sub2, saw, lfo], ping: ping };
+    return true;
+  },
+
+  /** Цифровой взрыв заставки. Самый крупный голос в палитре,
+   *  и он единственный собран из ТРЁХ слоёв сразу — сэмпла, суба
+   *  и шума. Причина не в размахе: взрыв обязан читаться как распад
+   *  ИЗОБРАЖЕНИЯ, а у распада три составляющих, которых поодиночке
+   *  не хватает.
+   *
+   *  · сэмпл `ach` вниз по скорости — тело удара, узнаваемое
+   *    как родня достижения: заставка кончается победой, а не сбоем;
+   *  · суб-свип 46 → 22 Гц — провал, который слышно грудью,
+   *    а не ушами. Синтез тут точнее сэмпла: частота задаётся
+   *    числом, а не тем, что оказалось в файле;
+   *  · шумовой хвост с падающим срезом — рассыпание.
+   *
+   *  Стоит 8 из 10 голосов бюджета намеренно: в этот миг ничего
+   *  другого звучать и не должно. */
+  blast() {
+    const ctx = this._live(SND.MARK); if (!ctx || !this._afford(8)) return false;
+    const G = this._gain(SND.MARK); this._wet(0.62);
+    /* Сэмпл идёт мимо `_sfx`: тот сам берёт уровень эха и бюджет,
+       а здесь оба уже взяты, и второй раз платить за них незачем. */
+    const buf = this._buf ? own(this._buf, 'ach', null) : null;
+    if (buf) {
+      const src = ctx.createBufferSource();
+      src.buffer = buf;
+      src.playbackRate.value = 0.72;
+      const amp = ctx.createGain();
+      amp.gain.value = G * SFX_BASE * 1.15;
+      src.connect(amp); amp.connect(this.out);
+      src.start();
+      src.onended = () => { try { src.disconnect(); amp.disconnect(); } catch (e) { /* уже сняты */ } };
+    }
+    this._tone({ f: 46, f2: 22, dur: 1.5, type: 'sine', g: 0.52, lvlGain: G });
+    this._tone({ f: 92, f2: 38, dur: 0.9, type: 'triangle', g: 0.18, lp: 240, lvlGain: G });
+    this._noise({ f: 7000, f2: 260, dur: 1.1, g: 0.12, q: 0.5, lvlGain: G });
+    this._noise({ f: 1800, f2: 120, dur: 0.6, g: 0.07, q: 1.2, at: 0.08, lvlGain: G });
+    return true;
+  },
+
   /* ══════════════════ УРОВЕНЬ 2: ДЕЙСТВИЯ ══════════════════ */
 
   /** Галочка. Высота — по значимости: `weight` это доля дня или

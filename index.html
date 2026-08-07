@@ -54,10 +54,10 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="SOC 365">
 <meta name="robots" content="noindex, nofollow">
-<link rel="manifest" href="manifest.webmanifest?v=39">
-<link rel="apple-touch-icon" href="icon.svg?v=39">
-<link rel="icon" href="icon.svg?v=39" type="image/svg+xml">
-<link rel="stylesheet" href="styles.css?v=39">
+<link rel="manifest" href="manifest.webmanifest?v=42">
+<link rel="apple-touch-icon" href="icon.svg?v=42">
+<link rel="icon" href="icon.svg?v=42" type="image/svg+xml">
+<link rel="stylesheet" href="styles.css?v=42">
 
 <!-- ══════════ ЭКРАН ЗАГРУЗКИ (§12.6-ter) ══════════
      Стили ИНЛАЙНОМ и разметка ПЕРВЫМ узлом body — иначе «с первого
@@ -75,133 +75,173 @@
 <style>
   /* ── Экран загрузки: 3D-голограмма из частиц ────────────────
      Здесь только то, что обязано появиться МГНОВЕННО: фон, сетка,
-     подписи. Сама голограмма живёт в <canvas> и оживает в boot.js —
+     подписи. Голограмма живёт в <canvas> и оживает в boot.js —
      инлайновый скрипт тут невозможен, `script-src` не держит
      'unsafe-inline' (§11), и первая редакция на этом чуть не
-     повесила сайт навсегда. Разбор в шапке boot.js. */
+     повесила сайт навсегда. Разбор в шапке boot.js.
+
+     РАСКЛАДКА ПО НЕПЕРЕСЕКАЮЩИМСЯ ЗОНАМ. Первая версия сажала
+     эквалайзер и лог в одну точку внизу по центру, и они наехали
+     друг на друга. Абсолютное позиционирование не защищает от этого
+     само по себе — защищает только то, что зоны РАЗВЕДЕНЫ заранее
+     и записаны здесь списком:
+
+       верх-центр   .boot-top (26) → .boot-bars (56) → .boot-rule (96)
+       верх-края    .boot-pan.tl / .tr (118)
+       середина     .boot-col.l / .r — колонки консоли
+       низ-центр    .boot-hud: знак, лог, полоса, проценты
+       низ-края     .boot-code (слева) / .boot-wave (справа)
+
+     Ничего нового между ними не вставляется без пересчёта. */
   #boot{position:fixed;inset:0;z-index:9999;overflow:hidden;
-        background:radial-gradient(120% 90% at 50% 42%,#0a1420 0%,#05080d 58%,#02040a 100%);
+        background:radial-gradient(120% 90% at 50% 44%,#0a1420 0%,#05080d 58%,#02040a 100%);
         color:#7de3d8;font:500 12px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;
         letter-spacing:.14em}
-  #boot::before{content:"";position:absolute;inset:-2px;opacity:.22;
+  #boot::before{content:"";position:absolute;inset:-2px;opacity:.20;
     background:linear-gradient(rgba(45,226,230,.09) 1px,transparent 1px) 0 0/100% 38px,
                linear-gradient(90deg,rgba(45,226,230,.09) 1px,transparent 1px) 0 0/38px 100%;
-    -webkit-mask:radial-gradient(circle at 50% 42%,#000 0%,transparent 78%);
-            mask:radial-gradient(circle at 50% 42%,#000 0%,transparent 78%)}
+    -webkit-mask:radial-gradient(circle at 50% 44%,#000 0%,transparent 80%);
+            mask:radial-gradient(circle at 50% 44%,#000 0%,transparent 80%)}
   #boot.gone{opacity:0;visibility:hidden;pointer-events:none;transition:opacity .34s ease,visibility .34s}
   #bootCv{position:absolute;inset:0;width:100%;height:100%;display:block}
+  @keyframes bootFade{to{opacity:1}}
+  @keyframes frIn{to{opacity:1}}
 
-  /* Подписи — отдельным слоем под голограммой по вертикали. */
-  .boot-hud{position:absolute;left:0;right:0;bottom:12%;display:grid;justify-items:center;
-            gap:16px;text-align:center;padding:0 20px}
+  /* ── верх-центр ─────────────────────────────────────────── */
+  .boot-top{position:absolute;top:26px;left:0;right:0;text-align:center;font-size:10px;
+            color:#3f6f6c;letter-spacing:.28em;opacity:0;animation:frIn .6s ease .5s forwards}
+  .boot-top b{font-weight:500;color:#7de3d8}
+  .boot-bars{position:absolute;top:54px;left:50%;transform:translateX(-50%);
+             display:flex;align-items:flex-end;gap:4px;height:26px;opacity:0;
+             animation:frIn .6s ease .85s forwards}
+  .boot-bars i{width:4px;background:linear-gradient(180deg,#ff4aa8,#2de2e6);
+               animation:barJump 1.3s ease-in-out infinite}
+  @keyframes barJump{0%,100%{transform:scaleY(.3)}50%{transform:scaleY(1)}}
+  .boot-rule{position:absolute;left:16%;right:16%;height:8px;opacity:0;top:96px;
+    background:repeating-linear-gradient(90deg,rgba(45,226,230,.4) 0 1px,transparent 1px 13px);
+    animation:frIn .6s ease .9s forwards}
+
+  /* ── верх-края ──────────────────────────────────────────── */
+  .boot-pan{position:absolute;top:118px;display:grid;gap:5px;font-size:9px;
+            letter-spacing:.18em;color:#3f6f6c;opacity:0;animation:frIn .6s ease .8s forwards}
+  .boot-pan span{border:1px solid rgba(45,226,230,.2);padding:3px 8px;
+                 background:rgba(45,226,230,.04)}
+  .boot-pan b{font-weight:500;color:#7de3d8}
+  .boot-pan.tl{left:26px}
+  .boot-pan.tr{right:26px;text-align:right;animation-delay:.95s}
+
+  /* ── середина: колонки консольного текста ───────────────────
+     Мелкий текст в две колонки по краям — то, чем заполняется
+     экран. Ширина фиксирована, поэтому длинная строка не полезет
+     в центр к голограмме. */
+  /* Колонки БЕГУТ, а не проявляются. Статичный текст читается как
+     картинка; бегущий — как поток вывода. Приём стандартный
+     и дешёвый: содержимое продублировано, лента едет ровно
+     на половину своей высоты и начинается заново — шва не видно,
+     потому что в этот момент вторая копия стоит там же, где первая.
+     Двигается ТОЛЬКО transform, то есть композитор без раскладки. */
+  .boot-col{position:absolute;top:150px;bottom:120px;width:196px;overflow:hidden;
+            font-size:8.5px;line-height:1.5;letter-spacing:.05em;color:#2f5a58;
+            opacity:0;animation:frIn .7s ease .9s forwards;
+            -webkit-mask:linear-gradient(180deg,transparent,#000 12%,#000 88%,transparent);
+            mask:linear-gradient(180deg,transparent,#000 12%,#000 88%,transparent)}
+  .boot-col.l{left:26px}
+  .boot-col.r{right:26px;text-align:right;animation-delay:1s}
+  .boot-col.l2{left:232px;width:180px;animation-delay:1.15s;opacity:0}
+  .boot-col.r2{right:232px;width:180px;text-align:right;animation-delay:1.3s;opacity:0}
+  .boot-col div{animation:colRun 14s linear infinite}
+  .boot-col.r div{animation-duration:19s}
+  .boot-col.l2 div{animation-duration:11s;animation-direction:reverse}
+  .boot-col.r2 div{animation-duration:16s}
+  @keyframes colRun{from{transform:translateY(0)}to{transform:translateY(-50%)}}
+  .boot-col u{text-decoration:none;color:#7de3d8}
+  .boot-col s{text-decoration:none;color:#ff4aa8}
+  .boot-col em{font-style:normal;display:block;white-space:nowrap}
+
+  /* ── низ-центр ──────────────────────────────────────────── */
+  .boot-hud{position:absolute;left:0;right:0;bottom:118px;display:grid;justify-items:center;
+            gap:13px;text-align:center;padding:0 260px}
   .boot-t{font-size:17px;letter-spacing:.5em;text-indent:.5em;color:#dff8f5;
           text-shadow:0 0 14px rgba(45,226,230,.7),0 0 34px rgba(45,226,230,.25);
           opacity:0;animation:bootFade .6s ease .55s forwards}
-  .boot-log{display:grid;gap:5px;font-size:11px;color:#4f8b87}
+  .boot-log{display:grid;gap:4px;font-size:10.5px;color:#4f8b87}
   .boot-log b{font-weight:500;opacity:0;animation:bootFade .3s ease forwards}
   .boot-log b:nth-child(1){animation-delay:.70s}
   .boot-log b:nth-child(2){animation-delay:.84s}
   .boot-log b:nth-child(3){animation-delay:.98s}
   .boot-log b:nth-child(4){animation-delay:1.12s}
-  @keyframes bootFade{to{opacity:1}}
+  .boot-cur{color:#7de3d8;animation-delay:1.26s}
+  .boot-cur i{font-style:normal;animation:curBlink 1s steps(1,end) infinite}
+  @keyframes curBlink{0%,49%{opacity:1}50%,100%{opacity:0}}
   .boot-bar{width:230px;height:2px;background:rgba(45,226,230,.14);overflow:hidden;
             box-shadow:0 0 12px rgba(45,226,230,.22)}
   .boot-bar i{display:block;height:100%;width:36%;
     background:linear-gradient(90deg,transparent,#2de2e6 42%,#ff4aa8 88%,transparent);
     animation:bootBar 1.1s cubic-bezier(.6,0,.4,1) .5s infinite}
   @keyframes bootBar{0%{transform:translateX(-110%)}100%{transform:translateX(380%)}}
-
-  /* ── Обвязка приборной панели ──────────────────────────────
-     Мерцание сделано ступенчатой функцией (steps), а не плавной:
-     плавное дыхание читается как «дышит», ступенчатое — как
-     «сигнал рвётся». Это разные вещи, и нужна вторая. */
-  .boot-fr{position:absolute;width:64px;height:64px;border:1px solid rgba(45,226,230,.55);
-           box-shadow:0 0 14px rgba(45,226,230,.2);opacity:0;
-           animation:frIn .5s ease .25s forwards,frFlick 3.1s steps(1,end) 1s infinite}
-  .boot-fr.tl{top:26px;left:26px;border-right:0;border-bottom:0}
-  .boot-fr.tr{top:26px;right:26px;border-left:0;border-bottom:0;animation-delay:.32s,1.4s}
-  .boot-fr.bl{bottom:26px;left:26px;border-right:0;border-top:0;animation-delay:.39s,2.2s}
-  .boot-fr.br{bottom:26px;right:26px;border-left:0;border-top:0;animation-delay:.46s,1.8s}
-  @keyframes frIn{to{opacity:1}}
-  @keyframes frFlick{0%,92%{opacity:1}93%{opacity:.25}95%{opacity:1}96%{opacity:.4}97%,100%{opacity:1}}
-
-  .boot-side{position:absolute;top:50%;transform:translateY(-50%);display:grid;gap:9px;opacity:0;
-             animation:frIn .6s ease .5s forwards}
-  .boot-side.l{left:38px}
-  .boot-side.r{right:38px}
-  .boot-side i{display:block;width:26px;height:3px;background:rgba(45,226,230,.3);
-               animation:sideRun 1.9s ease-in-out infinite}
-  .boot-side.r i{justify-self:end}
-  .boot-side i:nth-child(2){animation-delay:.12s;width:34px}
-  .boot-side i:nth-child(3){animation-delay:.24s;width:20px}
-  .boot-side i:nth-child(4){animation-delay:.36s;width:40px}
-  .boot-side i:nth-child(5){animation-delay:.48s;width:24px}
-  .boot-side i:nth-child(6){animation-delay:.60s;width:36px}
-  .boot-side i:nth-child(7){animation-delay:.72s;width:18px}
-  .boot-side i:nth-child(8){animation-delay:.84s;width:30px}
-  @keyframes sideRun{0%,100%{background:rgba(45,226,230,.22)}
-                     50%{background:rgba(45,226,230,.85);box-shadow:0 0 10px rgba(45,226,230,.55)}}
-
-  .boot-top{position:absolute;top:34px;left:0;right:0;text-align:center;font-size:10px;
-            color:#3f6f6c;letter-spacing:.28em;opacity:0;animation:frIn .6s ease .7s forwards}
-  .boot-top b{font-weight:500;color:#7de3d8}
-
-  .boot-cur{color:#7de3d8;animation-delay:1.26s}
-  .boot-cur i{font-style:normal;animation:curBlink 1s steps(1,end) infinite}
-  @keyframes curBlink{0%,49%{opacity:1}50%,100%{opacity:0}}
   .boot-pct{font-size:11px;color:#2de2e6;letter-spacing:.3em;opacity:0;
             animation:bootFade .4s ease 1.3s forwards}
   .boot-pct span{color:#3f6f6c}
 
-  /* Панели по краям. Мерцание ступенчатое (steps), а не плавное:
+  /* ── низ-края ───────────────────────────────────────────── */
+  .boot-code{position:absolute;left:26px;bottom:26px;width:260px;display:grid;gap:3px;
+             font-size:8.5px;letter-spacing:.08em;color:#356a67}
+  .boot-code span{opacity:0;animation:bootFade .22s ease forwards;white-space:nowrap;
+                  overflow:hidden;text-overflow:ellipsis}
+  .boot-code span:nth-child(1){animation-delay:1.20s}
+  .boot-code span:nth-child(2){animation-delay:1.31s}
+  .boot-code span:nth-child(3){animation-delay:1.42s}
+  .boot-code span:nth-child(4){animation-delay:1.53s}
+  .boot-code span:nth-child(5){animation-delay:1.64s;color:#7de3d8}
+  .boot-code span:nth-child(6){animation-delay:1.75s}
+  .boot-code span:nth-child(7){animation-delay:1.86s}
+  .boot-code span:nth-child(8){animation-delay:1.97s;color:#ff4aa8}
+  .boot-wave{position:absolute;right:26px;bottom:26px;display:flex;align-items:center;
+             gap:3px;height:34px;opacity:0;animation:frIn .5s ease 1.2s forwards}
+  .boot-wave i{width:3px;background:#2de2e6;box-shadow:0 0 6px rgba(45,226,230,.55);
+               animation:wv 1.1s ease-in-out infinite}
+  .boot-wave i:nth-child(2n){background:#ff4aa8;box-shadow:0 0 6px rgba(255,74,168,.45)}
+  @keyframes wv{0%,100%{transform:scaleY(.25)}50%{transform:scaleY(1)}}
+
+  /* Угловые скобки. Мерцание ступенчатое (steps), а не плавное:
      плавное читается как «дышит», ступенчатое — как «сигнал». */
-  .boot-pan{position:absolute;display:grid;gap:6px;font-size:9px;letter-spacing:.2em;
-            color:#3f6f6c;opacity:0;animation:frIn .6s ease .8s forwards}
-  .boot-pan span{border:1px solid rgba(45,226,230,.22);padding:4px 9px;
-                 background:rgba(45,226,230,.04)}
-  .boot-pan b{font-weight:500;color:#7de3d8}
-  .boot-pan.tl{top:110px;left:26px}
-  .boot-pan.tr{top:110px;right:26px;text-align:right;animation-delay:.95s}
-  .boot-bars{position:absolute;left:50%;transform:translateX(-50%);bottom:calc(12% + 108px);
-             display:flex;align-items:flex-end;gap:4px;height:34px;opacity:0;
-             animation:frIn .6s ease 1.05s forwards}
-  .boot-bars i{width:5px;background:linear-gradient(180deg,#ff4aa8,#2de2e6);
-               animation:barJump 1.3s ease-in-out infinite}
-  .boot-bars i:nth-child(1){height:40%;animation-delay:0s}
-  .boot-bars i:nth-child(2){height:70%;animation-delay:.09s}
-  .boot-bars i:nth-child(3){height:30%;animation-delay:.18s}
-  .boot-bars i:nth-child(4){height:90%;animation-delay:.27s}
-  .boot-bars i:nth-child(5){height:55%;animation-delay:.36s}
-  .boot-bars i:nth-child(6){height:80%;animation-delay:.45s}
-  .boot-bars i:nth-child(7){height:35%;animation-delay:.54s}
-  .boot-bars i:nth-child(8){height:65%;animation-delay:.63s}
-  .boot-bars i:nth-child(9){height:45%;animation-delay:.72s}
-  .boot-bars i:nth-child(10){height:85%;animation-delay:.81s}
-  .boot-bars i:nth-child(11){height:50%;animation-delay:.90s}
-  .boot-bars i:nth-child(12){height:75%;animation-delay:.99s}
-  @keyframes barJump{0%,100%{transform:scaleY(.35)}50%{transform:scaleY(1)}}
+  .boot-fr{position:absolute;width:56px;height:56px;border:1px solid rgba(45,226,230,.5);
+           box-shadow:0 0 14px rgba(45,226,230,.18);opacity:0;
+           animation:frIn .5s ease .25s forwards,frFlick 3.1s steps(1,end) 1s infinite}
+  .boot-fr.tl{top:14px;left:14px;border-right:0;border-bottom:0}
+  .boot-fr.tr{top:14px;right:14px;border-left:0;border-bottom:0;animation-delay:.32s,1.4s}
+  .boot-fr.bl{bottom:14px;left:14px;border-right:0;border-top:0;animation-delay:.39s,2.2s}
+  .boot-fr.br{bottom:14px;right:14px;border-left:0;border-top:0;animation-delay:.46s,1.8s}
+  @keyframes frFlick{0%,92%{opacity:1}93%{opacity:.25}95%{opacity:1}96%{opacity:.4}97%,100%{opacity:1}}
 
   /* Вспышка в момент разрыва. Один узел, гаснет за 0.4 с. */
   #boot.blast::after{content:"";position:absolute;inset:0;pointer-events:none;
     background:radial-gradient(circle at 50% 44%,rgba(45,226,230,.5),rgba(255,74,168,.16) 32%,transparent 60%);
     animation:blastFlash .4s ease-out forwards}
   @keyframes blastFlash{0%{opacity:0}16%{opacity:1}100%{opacity:0}}
-  #boot.blast .boot-hud,#boot.blast .boot-fr,#boot.blast .boot-side,#boot.blast .boot-top,
-  #boot.blast .boot-pan,#boot.blast .boot-bars{
-    animation:blastFade .34s ease forwards}
+  #boot.blast .boot-hud,#boot.blast .boot-fr,#boot.blast .boot-top,#boot.blast .boot-pan,
+  #boot.blast .boot-bars,#boot.blast .boot-code,#boot.blast .boot-wave,
+  #boot.blast .boot-rule,#boot.blast .boot-col{animation:blastFade .32s ease forwards}
   @keyframes blastFade{to{opacity:0;transform:scale(.97)}}
+
+  /* Узкий экран: колонки и мелочь убираются совсем. Они там
+     не читаются и только едят память (§4.1). */
+  @media (max-width:1500px){ .boot-col.l2,.boot-col.r2{display:none} }
+  @media (max-width:900px){
+    .boot-col,.boot-code,.boot-wave,.boot-pan{display:none}
+    .boot-hud{padding:0 20px}
+  }
 
   /* Движение — украшение, сам экран — обратная связь. Поэтому
      гасится ДВИЖЕНИЕ, а экран остаётся: убрать его целиком значило
-     бы вернуть голый фон тому, кто как раз просил поспокойнее.
-     Голограмма при этом рисуется ОДНИМ статичным кадром — это
-     решает boot.js, а не эти строки. */
+     бы вернуть голый фон тому, кто просил поспокойнее. */
   @media (prefers-reduced-motion:reduce){
-    .boot-t,.boot-log b,.boot-fr,.boot-side,.boot-top,.boot-pan,.boot-bars{opacity:1;animation:none}
-    .boot-bars i{animation:none}
-    .boot-side i{animation:none}
-    .boot-bar i{animation:none;width:100%}
-    #boot.blast::after,#boot.blast .boot-hud{animation:none}
+    .boot-t,.boot-log b,.boot-fr,.boot-top,.boot-pan,.boot-bars,.boot-rule,
+    .boot-code,.boot-code span,.boot-wave,.boot-col,.boot-col em,.boot-pct{opacity:1;animation:none}
+    .boot-col div{animation:none}
+    .boot-bars i,.boot-wave i,.boot-cur i,.boot-bar i{animation:none}
+    .boot-bar i{width:100%}
+    #boot.blast::after{animation:none}
   }
 </style>
 </head>
@@ -209,25 +249,31 @@
 
 <div id="boot" aria-hidden="true">
   <canvas id="bootCv"></canvas>
-  <!-- Рамка приборной панели. Четыре угла и две шкалы — чистый CSS,
-       ни одного анимируемого слоя во весь экран: §3.10 считает
-       бюджет по ПЛОЩАДИ, а не по числу узлов. -->
+
+  <!-- Обвязка приборной панели. Всё чистым CSS и мелкими узлами:
+       §3.10 считает бюджет по ПЛОЩАДИ, и рамка из сотни крошечных
+       элементов дешевле одного слоя во весь экран. -->
   <span class="boot-fr tl"></span><span class="boot-fr tr"></span>
   <span class="boot-fr bl"></span><span class="boot-fr br"></span>
-  <!-- Панели по краям: столбики, шкала секторов, бегущие строки.
-       Всё чистым CSS и без единого полноэкранного слоя — §3.10
-       считает бюджет по ПЛОЩАДИ, и рамка из мелких узлов дешевле
-       одного большого. -->
+
+  <div class="boot-top">SYS.LINK <b>0x7F</b> · CORE <b>NOMINAL</b> · SEC <b>AES-256</b> · CH <b>01</b></div>
+  <div class="boot-bars"><i style="height:35%;animation-delay:0.00s"></i><i style="height:70%;animation-delay:0.08s"></i><i style="height:28%;animation-delay:0.16s"></i><i style="height:88%;animation-delay:0.24s"></i><i style="height:52%;animation-delay:0.32s"></i><i style="height:78%;animation-delay:0.40s"></i><i style="height:33%;animation-delay:0.48s"></i><i style="height:64%;animation-delay:0.56s"></i><i style="height:45%;animation-delay:0.64s"></i><i style="height:82%;animation-delay:0.72s"></i><i style="height:50%;animation-delay:0.80s"></i><i style="height:74%;animation-delay:0.88s"></i></div>
+  <div class="boot-rule"></div>
+
   <div class="boot-pan tl">
-    <span>SEC_01</span><span>SEC_02</span><span>SEC_03</span><span>SEC_04</span>
+    <span>SEC_01 <b>OK</b></span><span>SEC_02 <b>OK</b></span>
+    <span>SEC_03 <b>OK</b></span><span>SEC_04 <b>··</b></span>
   </div>
   <div class="boot-pan tr">
-    <span>NODE <b>0x2F</b></span><span>SYNC <b>OK</b></span><span>TRACE <b>ON</b></span><span>KEY <b>RSA</b></span>
+    <span>NODE <b>0x2F</b></span><span>SYNC <b>OK</b></span>
+    <span>TRACE <b>ON</b></span><span>KEY <b>RSA</b></span>
   </div>
-  <div class="boot-bars"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
-  <div class="boot-side l"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
-  <div class="boot-side r"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
-  <div class="boot-top">SYS.LINK <b>0x7F</b> · CORE <b>NOMINAL</b> · SEC <b>AES-256</b></div>
+
+  <div class="boot-col l"><div><em>[<u>OK</u>] kernel.soc v4.2.1</em><em>[<u>OK</u>] mem 0xA5CD-0x4D3C mapped</em><em>[..] probing telemetry bus</em><em>[<u>OK</u>] 52 sectors indexed</em><em>[..] rsa-4096 key exchange</em><em>[<u>OK</u>] tls1.3 aead active</em><em>0xCA26 0x18B8 0x2516 0x3031</em><em>[<u>OK</u>] sha256 checksum match</em><em>[..] linking zero.core</em><em>[<u>OK</u>] 224 nodes resolved</em><em>[<s>!!</s>] 0 anomalies detected</em><em>[<u>OK</u>] rls policy enforced</em><em>trace eth0 -> gw -> edge</em><em>[..] warming render pipe</em><em>ptr 0xBB3B -> 0x1DB2</em><em>[<u>OK</u>] idx rebuilt in 12ms</em><em>sig 0x6DEC verified</em><em>[..] fetch roadmaps.content</em><em>[<u>OK</u>] 44032 B decoded</em><em>crc32 0x1332 match</em><em>[<u>OK</u>] kernel.soc v4.2.1</em><em>[<u>OK</u>] mem 0xA5CD-0x4D3C mapped</em><em>[..] probing telemetry bus</em><em>[<u>OK</u>] 52 sectors indexed</em><em>[..] rsa-4096 key exchange</em><em>[<u>OK</u>] tls1.3 aead active</em><em>0xCA26 0x18B8 0x2516 0x3031</em><em>[<u>OK</u>] sha256 checksum match</em><em>[..] linking zero.core</em><em>[<u>OK</u>] 224 nodes resolved</em><em>[<s>!!</s>] 0 anomalies detected</em><em>[<u>OK</u>] rls policy enforced</em><em>trace eth0 -> gw -> edge</em><em>[..] warming render pipe</em><em>ptr 0xBB3B -> 0x1DB2</em><em>[<u>OK</u>] idx rebuilt in 12ms</em><em>sig 0x6DEC verified</em><em>[..] fetch roadmaps.content</em><em>[<u>OK</u>] 44032 B decoded</em><em>crc32 0x1332 match</em></div></div>
+  <div class="boot-col l2"><div><em>0x2C01: DE06 D61A 23C4 7B38</em><em>0x2E71: D95A 1E43 3F62 724C</em><em>0x1FAC: CB19 1963 7131 17D9</em><em>push ebp</em><em>mov ebp, esp</em><em>sub esp, 0x442F</em><em>call 0x9447</em><em>test eax, eax</em><em>jz 0xD699</em><em>xor edx, edx</em><em>lea rsi, [rip+0x49DB]</em><em>syscall</em><em>ret</em><em>nop</em><em>int3</em><em>0x2C01: DE06 D61A 23C4 7B38</em><em>0x2E71: D95A 1E43 3F62 724C</em><em>0x1FAC: CB19 1963 7131 17D9</em><em>push ebp</em><em>mov ebp, esp</em><em>sub esp, 0x442F</em><em>call 0x9447</em><em>test eax, eax</em><em>jz 0xD699</em><em>xor edx, edx</em><em>lea rsi, [rip+0x49DB]</em><em>syscall</em><em>ret</em><em>nop</em><em>int3</em></div></div>
+  <div class="boot-col r"><div><em>uptime 00:00:0<u>2</u></em><em>load 0.14 0.09 0.03</em><em>heap 12.4M / 64M</em><em>gpu raster <u>on</u></em><em>fps <u>60</u> vsync</em><em>net rtt 18ms</em><em>pkt tx 2234 rx 502</em><em>err 0 drop 0</em><em>0x9DF1 ACK</em><em>0x5C88 ACK</em><em>0x34C3 <s>RETRY</s></em><em>0x6030 ACK</em><em>cipher aes-256-gcm</em><em>entropy <u>high</u></em><em>session sealed</em><em>tick 1545 us</em><em>q depth 419</em><em>cache hit 98.2%</em><em>io wait 0.4ms</em><em>sched rt <u>ok</u></em><em>uptime 00:00:0<u>2</u></em><em>load 0.14 0.09 0.03</em><em>heap 12.4M / 64M</em><em>gpu raster <u>on</u></em><em>fps <u>60</u> vsync</em><em>net rtt 18ms</em><em>pkt tx 2234 rx 502</em><em>err 0 drop 0</em><em>0x9DF1 ACK</em><em>0x5C88 ACK</em><em>0x34C3 <s>RETRY</s></em><em>0x6030 ACK</em><em>cipher aes-256-gcm</em><em>entropy <u>high</u></em><em>session sealed</em><em>tick 1545 us</em><em>q depth 419</em><em>cache hit 98.2%</em><em>io wait 0.4ms</em><em>sched rt <u>ok</u></em></div></div>
+  <div class="boot-col r2"><div><em>GET /roadmaps 200</em><em>POST /progress 204</em><em>GET /person 200</em><em>WS /realtime <u>open</u></em><em>hdr x-req-id 2025</em><em>ttl 300s</em><em>etag W/"1E84"</em><em>vary accept-encoding</em><em>gzip 4.1x</em><em>tls sni ok</em><em>alpn h2</em><em>conn reuse <u>1</u></em><em>dns 4ms</em><em>tcp 11ms</em><em>tls 22ms</em><em>GET /roadmaps 200</em><em>POST /progress 204</em><em>GET /person 200</em><em>WS /realtime <u>open</u></em><em>hdr x-req-id 2025</em><em>ttl 300s</em><em>etag W/"1E84"</em><em>vary accept-encoding</em><em>gzip 4.1x</em><em>tls sni ok</em><em>alpn h2</em><em>conn reuse <u>1</u></em><em>dns 4ms</em><em>tcp 11ms</em><em>tls 22ms</em></div></div>
+
   <div class="boot-hud">
     <div class="boot-t">SOC 365</div>
     <div class="boot-log">
@@ -240,6 +286,18 @@
     <div class="boot-bar"><i></i></div>
     <div class="boot-pct" id="bootPct">00<span>%</span></div>
   </div>
+
+  <div class="boot-code">
+    <span>&gt; init secure channel .......... ok</span>
+    <span>&gt; verify signature ............. ok</span>
+    <span>&gt; mount roadmap:cyber .......... ok</span>
+    <span>&gt; decrypt payload 44032 B ...... ok</span>
+    <span>&gt; 0x4F2A 0x91BC 0x03DE 0x77A1</span>
+    <span>&gt; resolve 224 tasks / 52 weeks</span>
+    <span>&gt; handshake complete</span>
+    <span>&gt; awaiting core sync ...</span>
+  </div>
+  <div class="boot-wave"><i style="height:20%;animation-delay:0.00s"></i><i style="height:55%;animation-delay:0.06s"></i><i style="height:30%;animation-delay:0.12s"></i><i style="height:80%;animation-delay:0.18s"></i><i style="height:45%;animation-delay:0.24s"></i><i style="height:95%;animation-delay:0.30s"></i><i style="height:35%;animation-delay:0.36s"></i><i style="height:65%;animation-delay:0.42s"></i><i style="height:25%;animation-delay:0.48s"></i><i style="height:75%;animation-delay:0.54s"></i><i style="height:40%;animation-delay:0.60s"></i><i style="height:88%;animation-delay:0.66s"></i><i style="height:30%;animation-delay:0.72s"></i><i style="height:60%;animation-delay:0.78s"></i><i style="height:22%;animation-delay:0.84s"></i><i style="height:70%;animation-delay:0.90s"></i></div>
 </div>
 
 <!-- Оживление экрана — ОТДЕЛЬНЫМ ФАЙЛОМ, и это не стиль.
@@ -248,7 +306,7 @@
      и на живом сайте это повесило бы заставку навсегда поверх
      приложения — вместе с её собственной страховкой, лежавшей
      в том же заблокированном теге. Разбор в шапке boot.js. -->
-<script src="boot.js?v=39"></script>
+<script src="boot.js?v=42"></script>
 
 <div class="env" aria-hidden="true">
   <div class="grid"></div>
@@ -335,7 +393,7 @@
 
 <!-- Первым: фреймбастер должен сработать до отрисовки, а хелперы
      экранирования нужны раньше любого рендеринга. -->
-<script src="security.js?v=39"></script>
+<script src="security.js?v=42"></script>
 
 <!-- ЕДИНСТВЕННАЯ ВНЕШНЯЯ ЗАВИСИМОСТЬ — запинена и закрыта хэшем.
 
@@ -355,10 +413,10 @@
         integrity="sha384-fPWur1rx/DE6YtXP/x0MD6dd90RgnVsz5yX/DIg7CcVAnTBZsENWuIcpvVTM39ti"
         crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 
-<script src="config.js?v=39"></script>
-<script src="data-weeks.js?v=39"></script>
-<script src="data.js?v=39"></script>
-<script src="person.js?v=39"></script>
+<script src="config.js?v=42"></script>
+<script src="data-weeks.js?v=42"></script>
+<script src="data.js?v=42"></script>
+<script src="person.js?v=42"></script>
 <!-- Содержание трека (§3.2) — сразу после данных и до store.js:
      он подменяет WEEKS, META, QUARTERS, DAILY, DAY_VARIANTS
      и MILESTONES по месту тем, что лежит в roadmaps.content.
@@ -366,24 +424,24 @@
      происходит в openApp(), после выбора трека и до первой отрисовки.
      Два файла выше остаются в проекте как офлайн-запас — истиной
      они быть перестали. -->
-<script src="content.js?v=39"></script>
-<script src="store.js?v=39"></script>
-<script src="auth.js?v=39"></script>
-<script src="sync.js?v=39"></script>
-<script src="vocab.js?v=39"></script>
+<script src="content.js?v=42"></script>
+<script src="store.js?v=42"></script>
+<script src="auth.js?v=42"></script>
+<script src="sync.js?v=42"></script>
+<script src="vocab.js?v=42"></script>
 <!-- Звук (§12.5) — до app.js: его обработчики зовут Sound напрямую.
      Файлов не грузит и AudioContext при загрузке НЕ создаёт: контекст
      родится только внутри настоящего нажатия, иначе iOS отдаст
      молчащий. По той же причине media-src в CSP остаётся 'none'. -->
-<script src="sound.js?v=39"></script>
+<script src="sound.js?v=42"></script>
 <!-- Спецэффекты (§12.6) — после sound.js: глитч пускает картинку
      и звук из одного места, чтобы они не разъехались во времени.
      До app.js: его обработчики зовут Fx напрямую. Ни одного
      полноэкранного слоя при загрузке не создаёт. -->
-<script src="fx.js?v=39"></script>
+<script src="fx.js?v=42"></script>
 <!-- Zero (§12.3) — до app.js: rToday() зовёт Zero.html() при первой же
      отрисовке. Сам виджет наружу не ходит и connect-src не трогает. -->
-<script src="zero.js?v=39"></script>
-<script src="app.js?v=39"></script>
+<script src="zero.js?v=42"></script>
+<script src="app.js?v=42"></script>
 </body>
 </html>

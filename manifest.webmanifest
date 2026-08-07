@@ -10,6 +10,6 @@
   "theme_color": "#06090f",
   "lang": "ru",
   "icons": [
-    { "src": "icon.svg?v=39", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+    { "src": "icon.svg?v=42", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
   ]
 }
