@@ -54,10 +54,10 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="SOC 365">
 <meta name="robots" content="noindex, nofollow">
-<link rel="manifest" href="manifest.webmanifest?v=42">
-<link rel="apple-touch-icon" href="icon.svg?v=42">
-<link rel="icon" href="icon.svg?v=42" type="image/svg+xml">
-<link rel="stylesheet" href="styles.css?v=42">
+<link rel="manifest" href="manifest.webmanifest?v=45">
+<link rel="apple-touch-icon" href="icon.svg?v=45">
+<link rel="icon" href="icon.svg?v=45" type="image/svg+xml">
+<link rel="stylesheet" href="styles.css?v=45">
 
 <!-- ══════════ ЭКРАН ЗАГРУЗКИ (§12.6-ter) ══════════
      Стили ИНЛАЙНОМ и разметка ПЕРВЫМ узлом body — иначе «с первого
@@ -214,15 +214,79 @@
   .boot-fr.br{bottom:14px;right:14px;border-left:0;border-top:0;animation-delay:.46s,1.8s}
   @keyframes frFlick{0%,92%{opacity:1}93%{opacity:.25}95%{opacity:1}96%{opacity:.4}97%,100%{opacity:1}}
 
+  /* Тряска всего слоя: экран «сорвало». Ступенчатая функция,
+     а не плавная, — плавная читается как качание, ступенчатая
+     как сбой развёртки. Трансформ на самом оверлее безопасен:
+     внутри него нет ни одного fixed-элемента (§3.5-bis). */
+  #boot.blast{animation:crash .5s steps(1,end) forwards}
+  @keyframes crash{
+    0%  {transform:translate(0,0)}
+    8%  {transform:translate(-9px,3px)}
+    16% {transform:translate(7px,-5px)}
+    24% {transform:translate(-5px,-2px)}
+    34% {transform:translate(6px,4px)}
+    46% {transform:translate(-3px,1px)}
+    60% {transform:translate(2px,-2px)}
+    100%{transform:translate(0,0)}
+  }
+
   /* Вспышка в момент разрыва. Один узел, гаснет за 0.4 с. */
   #boot.blast::after{content:"";position:absolute;inset:0;pointer-events:none;
     background:radial-gradient(circle at 50% 44%,rgba(45,226,230,.5),rgba(255,74,168,.16) 32%,transparent 60%);
     animation:blastFlash .4s ease-out forwards}
   @keyframes blastFlash{0%{opacity:0}16%{opacity:1}100%{opacity:0}}
-  #boot.blast .boot-hud,#boot.blast .boot-fr,#boot.blast .boot-top,#boot.blast .boot-pan,
-  #boot.blast .boot-bars,#boot.blast .boot-code,#boot.blast .boot-wave,
-  #boot.blast .boot-rule,#boot.blast .boot-col{animation:blastFade .32s ease forwards}
-  @keyframes blastFade{to{opacity:0;transform:scale(.97)}}
+  /* ── Разлёт обвязки ────────────────────────────────────────
+     Текст не гаснет, а УЛЕТАЕТ за края, каждый в свою сторону —
+     от центра наружу. Одно общее затухание читалось бы как «экран
+     выключили»; разные векторы читаются как «изображение разорвало».
+
+     Направление у каждого куска своё и совпадает с тем, где он
+     лежал: верхние вверх, боковые в бок, нижние вниз. Иначе куски
+     полетят сквозь друг друга, и вместо взрыва выйдет каша.
+
+     Смещения в vw/vh: за край экрана надо уйти на ЛЮБОМ мониторе,
+     а не на том, где это настраивали. Кривая с разгоном
+     (ease-in): взрыв ускоряется, а не тормозит. */
+  #boot.blast .boot-top,#boot.blast .boot-bars,#boot.blast .boot-rule,
+  #boot.blast .boot-pan,#boot.blast .boot-col,#boot.blast .boot-code,
+  #boot.blast .boot-wave,#boot.blast .boot-fr,#boot.blast .boot-t,
+  #boot.blast .boot-log b,#boot.blast .boot-bar,#boot.blast .boot-pct{
+    animation:shrapnel .62s cubic-bezier(.55,0,.95,.35) forwards;
+    will-change:transform,opacity}
+  @keyframes shrapnel{
+    0%  {opacity:1;transform:translate(0,0) rotate(0) scale(1)}
+    14% {opacity:1;transform:translate(calc(var(--dx)*-.05),calc(var(--dy)*-.05)) scale(1.06)}
+    100%{opacity:0;transform:translate(var(--dx),var(--dy)) rotate(var(--dr,0deg)) scale(.7)}
+  }
+  /* Векторы. Верх — вверх, низ — вниз, края — в стороны. */
+  #boot.blast .boot-top   {--dx:-6vw; --dy:-70vh; --dr:-18deg}
+  #boot.blast .boot-bars  {--dx: 8vw; --dy:-80vh; --dr: 24deg}
+  #boot.blast .boot-rule  {--dx: 0;   --dy:-64vh}
+  #boot.blast .boot-pan.tl{--dx:-72vw;--dy:-42vh;--dr:-30deg}
+  #boot.blast .boot-pan.tr{--dx: 72vw;--dy:-42vh;--dr: 30deg}
+  #boot.blast .boot-col.l {--dx:-86vw;--dy:-10vh;--dr:-12deg;animation-delay:.03s}
+  #boot.blast .boot-col.l2{--dx:-70vw;--dy: 26vh;--dr:-20deg;animation-delay:.06s}
+  #boot.blast .boot-col.r {--dx: 86vw;--dy:-10vh;--dr: 12deg;animation-delay:.03s}
+  #boot.blast .boot-col.r2{--dx: 70vw;--dy: 26vh;--dr: 20deg;animation-delay:.06s}
+  #boot.blast .boot-code  {--dx:-64vw;--dy: 56vh;--dr:-26deg}
+  #boot.blast .boot-wave  {--dx: 64vw;--dy: 56vh;--dr: 26deg}
+  #boot.blast .boot-fr.tl {--dx:-58vw;--dy:-58vh;--dr:-45deg}
+  #boot.blast .boot-fr.tr {--dx: 58vw;--dy:-58vh;--dr: 45deg}
+  #boot.blast .boot-fr.bl {--dx:-58vw;--dy: 58vh;--dr: 45deg}
+  #boot.blast .boot-fr.br {--dx: 58vw;--dy: 58vh;--dr:-45deg}
+  /* Нижний блок разлетается ПОСТРОЧНО: пять строк лога — пять
+     осколков. Целым куском он улетел бы плитой, а не разорвался. */
+  #boot.blast .boot-t          {--dx:-14vw;--dy: 74vh;--dr:-22deg}
+  #boot.blast .boot-log b:nth-child(1){--dx:-46vw;--dy: 52vh;--dr:-34deg;animation-delay:.02s}
+  #boot.blast .boot-log b:nth-child(2){--dx: 40vw;--dy: 60vh;--dr: 28deg;animation-delay:.05s}
+  #boot.blast .boot-log b:nth-child(3){--dx:-30vw;--dy: 78vh;--dr: 18deg;animation-delay:.04s}
+  #boot.blast .boot-log b:nth-child(4){--dx: 52vw;--dy: 44vh;--dr:-24deg;animation-delay:.07s}
+  #boot.blast .boot-log b:nth-child(5){--dx: 10vw;--dy: 86vh;--dr: 40deg;animation-delay:.09s}
+  #boot.blast .boot-bar        {--dx: 24vw;--dy: 70vh;--dr: 32deg;animation-delay:.06s}
+  #boot.blast .boot-pct        {--dx:-22vw;--dy: 82vh;--dr:-38deg;animation-delay:.08s}
+  /* Лента внутри колонки на разлёте замирает: бегущий текст
+     в улетающем куске выглядит опечаткой, а не движением. */
+  #boot.blast .boot-col div{animation-play-state:paused}
 
   /* Узкий экран: колонки и мелочь убираются совсем. Они там
      не читаются и только едят память (§4.1). */
@@ -241,7 +305,13 @@
     .boot-col div{animation:none}
     .boot-bars i,.boot-wave i,.boot-cur i,.boot-bar i{animation:none}
     .boot-bar i{width:100%}
+    #boot.blast{animation:none}
     #boot.blast::after{animation:none}
+    #boot.blast .boot-top,#boot.blast .boot-bars,#boot.blast .boot-rule,
+    #boot.blast .boot-pan,#boot.blast .boot-col,#boot.blast .boot-code,
+    #boot.blast .boot-wave,#boot.blast .boot-fr,#boot.blast .boot-t,
+    #boot.blast .boot-log b,#boot.blast .boot-bar,#boot.blast .boot-pct{
+      animation:none;opacity:0;transition:opacity .2s}
   }
 </style>
 </head>
@@ -306,7 +376,7 @@
      и на живом сайте это повесило бы заставку навсегда поверх
      приложения — вместе с её собственной страховкой, лежавшей
      в том же заблокированном теге. Разбор в шапке boot.js. -->
-<script src="boot.js?v=42"></script>
+<script src="boot.js?v=45"></script>
 
 <div class="env" aria-hidden="true">
   <div class="grid"></div>
@@ -393,7 +463,7 @@
 
 <!-- Первым: фреймбастер должен сработать до отрисовки, а хелперы
      экранирования нужны раньше любого рендеринга. -->
-<script src="security.js?v=42"></script>
+<script src="security.js?v=45"></script>
 
 <!-- ЕДИНСТВЕННАЯ ВНЕШНЯЯ ЗАВИСИМОСТЬ — запинена и закрыта хэшем.
 
@@ -413,10 +483,10 @@
         integrity="sha384-fPWur1rx/DE6YtXP/x0MD6dd90RgnVsz5yX/DIg7CcVAnTBZsENWuIcpvVTM39ti"
         crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 
-<script src="config.js?v=42"></script>
-<script src="data-weeks.js?v=42"></script>
-<script src="data.js?v=42"></script>
-<script src="person.js?v=42"></script>
+<script src="config.js?v=45"></script>
+<script src="data-weeks.js?v=45"></script>
+<script src="data.js?v=45"></script>
+<script src="person.js?v=45"></script>
 <!-- Содержание трека (§3.2) — сразу после данных и до store.js:
      он подменяет WEEKS, META, QUARTERS, DAILY, DAY_VARIANTS
      и MILESTONES по месту тем, что лежит в roadmaps.content.
@@ -424,24 +494,24 @@
      происходит в openApp(), после выбора трека и до первой отрисовки.
      Два файла выше остаются в проекте как офлайн-запас — истиной
      они быть перестали. -->
-<script src="content.js?v=42"></script>
-<script src="store.js?v=42"></script>
-<script src="auth.js?v=42"></script>
-<script src="sync.js?v=42"></script>
-<script src="vocab.js?v=42"></script>
+<script src="content.js?v=45"></script>
+<script src="store.js?v=45"></script>
+<script src="auth.js?v=45"></script>
+<script src="sync.js?v=45"></script>
+<script src="vocab.js?v=45"></script>
 <!-- Звук (§12.5) — до app.js: его обработчики зовут Sound напрямую.
      Файлов не грузит и AudioContext при загрузке НЕ создаёт: контекст
      родится только внутри настоящего нажатия, иначе iOS отдаст
      молчащий. По той же причине media-src в CSP остаётся 'none'. -->
-<script src="sound.js?v=42"></script>
+<script src="sound.js?v=45"></script>
 <!-- Спецэффекты (§12.6) — после sound.js: глитч пускает картинку
      и звук из одного места, чтобы они не разъехались во времени.
      До app.js: его обработчики зовут Fx напрямую. Ни одного
      полноэкранного слоя при загрузке не создаёт. -->
-<script src="fx.js?v=42"></script>
+<script src="fx.js?v=45"></script>
 <!-- Zero (§12.3) — до app.js: rToday() зовёт Zero.html() при первой же
      отрисовке. Сам виджет наружу не ходит и connect-src не трогает. -->
-<script src="zero.js?v=42"></script>
-<script src="app.js?v=42"></script>
+<script src="zero.js?v=45"></script>
+<script src="app.js?v=45"></script>
 </body>
 </html>
