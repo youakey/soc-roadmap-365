@@ -25,13 +25,13 @@
       платили в §12.1. `pickShape` здесь не годится: он подменяет
       объект целиком и внутрь не заглядывает (§12.5-bis).
 
-   2. База недоступна — работаем на встроенном содержании.
+   2. База недоступна — работаем на последнем, что она сказала,
+      а если не говорила ничего — на встроенном содержании.
       Офлайн для этого приложения нормальный режим (§10), и трекер
-      не имеет права становиться белым экраном без сети. Поэтому
-      `data-weeks.js` остаётся в репозитории: он больше не истина,
-      но он запас. Цена честная и записана в §3.2-bis: пока запас
-      не обновляют вместе с базой, офлайн показывает содержание
-      на момент последней выкладки.
+      не имеет права становиться белым экраном без сети. Порядок
+      запасов: кеш последнего удачного чтения → `data-weeks.js`.
+      Кеш заведён 07.08.2026 (§3.2-quater), когда содержание начали
+      править прямо в базе и версия в ней стала расходиться с файлами.
 
    3. Сюда НИЧЕГО не пишется. Содержание общего трека правит владелец
       из SQL Editor, клиенту на запись доступа нет вовсе — так стоит
@@ -42,11 +42,25 @@
 
 'use strict';
 
+/* Кеш последнего удачного чтения из базы. Одна запись, а не по одной
+   на трек: она заменяется целиком при смене трека. Цена честная —
+   человек, переключающийся между двумя треками без сети, увидит
+   встроенное содержание для того, который читал раньше. Взамен
+   объём ограничен сверху и не растёт с числом треков.
+
+   Ключ инвалидации — пара (трек, версия). Версия лежит в самом
+   содержании (`content.v`, §13.2-bis) и заведена ровно для того,
+   чтобы правку прямо в базе было по чему отличить. */
+const CONTENT_KEY = 'soc365.content.v1';
+
 const Content = {
-  /** Откуда взято содержание: 'code' — из файлов страницы, 'db' — из базы. */
+  /** Откуда взято содержание: 'code' — файлы страницы, 'db' — база,
+   *  'cache' — последнее, что база сказала на этом устройстве. */
   source: 'code',
   /** Почему не из базы, если не из базы. Пусто, когда всё в порядке. */
   note: '',
+  /** Версия применённого содержания, 0 — если версии в нём нет. */
+  v: 0,
 
   /* ── Границы. Не про красоту, а про то, что содержание приходит
      снаружи: его размер и форму задаёт не эта страница. ── */
@@ -87,6 +101,13 @@ const Content = {
 
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return bad('content не объект');
     if (!Object.keys(raw).length) return bad('content пуст — трек ещё не засеян');
+
+    /* Версия. Отсутствие версии — НЕ повод отвергнуть содержание:
+       блоб v1 её уже имел, но чужой трек может её и не заводить,
+       а разбор обязан принимать всё, что принимал вчера. Нужна она
+       одному месту — кешу, где служит половиной ключа. */
+    const vRaw = own(raw, 'v', undefined);
+    const v = Number.isInteger(vRaw) && vRaw >= 0 && vRaw < 1e9 ? vRaw : 0;
 
     /* ── недели ── */
     const rw = own(raw, 'weeks', null);
@@ -285,7 +306,7 @@ const Content = {
       milestones.push({ w, date, name, test, targets });
     }
 
-    return { weeks, meta: { start, end, totalHours, weeklyHours, sessionWeeks, sessionBlocks, examWeeks }, quarters, daily, dayVariants, milestones };
+    return { v, weeks, meta: { start, end, totalHours, weeklyHours, sessionWeeks, sessionBlocks, examWeeks }, quarters, daily, dayVariants, milestones };
   },
 
   /* ── Подстановка ──────────────────────────────────────────
@@ -327,6 +348,60 @@ const Content = {
     return out.length ? out : DAILY.slice();
   },
 
+  /* ── Кеш последнего удачного чтения ───────────────────────
+     Мина, которую надо видеть заранее: кеш и `person.js` независимы,
+     подстановка параметров идёт ПОВЕРХ содержания и ПО МЕСТУ.
+     `install()` кладёт объекты недель прямо в `WEEKS`, а `applyPerson()`
+     потом переписывает у них `tasks`. То есть объект, отданный
+     в `install()`, через миг перестаёт быть шаблоном.
+
+     Поэтому запись в кеш стоит ДО `install()` и сериализует объект
+     сразу, строкой. Это не дисциплина порядка вызовов, а устройство:
+     после `JSON.stringify` дальнейшие правки по месту до кеша
+     не доходят физически. Ровно та же мина сработала в генераторе
+     сида — там ответом был снимок ДО загрузки `person.js` (§13.2-bis). */
+  _save(roadmapId, c) {
+    try {
+      localStorage.setItem(CONTENT_KEY, JSON.stringify({ t: roadmapId, v: c.v, c }));
+      return true;
+    } catch (e) {
+      /* Кончилось место — это не повод ломать загрузку: кеш запас,
+         а не источник. Молчать всё же нельзя: офлайн после этого
+         будет работать на встроенном, и знать почему надо. */
+      console.warn('content: кеш не записан', e && e.message ? e.message : e);
+      return false;
+    }
+  },
+
+  /** Разобранное содержание из кеша или null. Разбор ТОТ ЖЕ, что
+   *  для базы: localStorage не граница доверия (§11.1), и то, что
+   *  положили туда мы, мог поправить кто угодно. Второй раз `parse()`
+   *  не пишется — он один на оба источника, и это же доказывает,
+   *  что нормализованная форма переживает круг через сериализацию. */
+  _load(roadmapId) {
+    let box = null;
+    try {
+      const raw = localStorage.getItem(CONTENT_KEY);
+      box = raw ? safeParse(raw) : null;
+    } catch (e) {
+      console.warn('content: кеш не прочитан', e && e.message ? e.message : e);
+      return null;
+    }
+    if (!box || typeof box !== 'object' || Array.isArray(box)) return null;
+    /* Половина ключа — трек. Содержание другого трека для этого
+       такое же чужое, как отсутствие кеша вовсе. */
+    if (own(box, 't', null) !== roadmapId) return null;
+    const keep = this.note;
+    const c = this.parse(own(box, 'c', null));
+    if (!c) {
+      console.warn('content: кеш не прошёл разбор —', this.note);
+      this.note = keep;
+      return null;
+    }
+    this.note = keep;
+    return c;
+  },
+
   /* ── Загрузка ─────────────────────────────────────────────
      Зовётся один раз, ПОСЛЕ выбора трека и ДО первой отрисовки:
      `currentWeek()` и `Store.stats()` читают WEEKS сразу, и увидеть
@@ -336,31 +411,50 @@ const Content = {
   async load(sb, roadmapId) {
     this.source = 'code';
     this.note = '';
+    this.v = 0;
     if (!sb || !roadmapId) { this.note = 'трек не выбран'; return this.source; }
 
     let raw = null;
+    let reach = true;
     try {
       const { data, error } = await sb.from('roadmaps')
         .select('content').eq('id', roadmapId).maybeSingle();
       if (error) throw error;
       raw = data ? data.content : null;
     } catch (e) {
+      reach = false;
       this.note = 'база недоступна: ' + (e && e.message ? e.message : String(e));
-      console.warn('content: остаюсь на встроенном содержании трека —', this.note);
+    }
+
+    /* Пустой content — это не поломка, а «трек ещё не засеян»:
+       блок 11 supabase.sql не выполняли. Всё остальное — поломка,
+       и о ней надо знать. Разбор всё-или-ничего: не прошла хоть
+       одна неделя — не применяется ничего. */
+    const c = reach ? this.parse(raw) : null;
+    if (c) {
+      this._save(roadmapId, c);   // ДО install() — см. комментарий выше
+      this.install(c);
+      this.source = 'db';
+      this.v = c.v;
       return this.source;
     }
 
-    const c = this.parse(raw);
-    if (!c) {
-      /* Пустой content — это не поломка, а «трек ещё не засеян»:
-         блок 11 supabase.sql не выполняли. Всё остальное — поломка,
-         и о ней надо знать. */
-      console.warn('content: остаюсь на встроенном содержании трека —', this.note);
+    /* База не ответила или ответила негодным. Кеш — это ПОСЛЕДНЕЕ,
+       что база сказала на этом устройстве, то есть строго более
+       свежие сведения, чем встроенный файл: содержание правят
+       в базе, а файл обновляется только выкладкой сайта. */
+    const cached = this._load(roadmapId);
+    if (cached) {
+      this.install(cached);
+      this.source = 'cache';
+      this.v = cached.v;
+      this.note = (this.note ? this.note + '; ' : '') +
+        `показываю сохранённое содержание v${cached.v}`;
+      console.warn('content: беру содержание из кеша устройства —', this.note);
       return this.source;
     }
 
-    this.install(c);
-    this.source = 'db';
+    console.warn('content: остаюсь на встроенном содержании трека —', this.note);
     return this.source;
   }
 };
