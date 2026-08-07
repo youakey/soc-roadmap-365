@@ -140,8 +140,25 @@ function countUp(el, to, suffix) {
 function fmtNum(n) { return Number.isInteger(n) ? String(Math.round(n)) : (Math.round(n * 10) / 10).toFixed(1); }
 
 
-/** Эффект расшифровки текста: символы перебираются и складываются в слово. */
+/** Эффект расшифровки текста: символы перебираются и складываются в слово.
+ *
+ *  Считает по СТЕННЫМ ЧАСАМ, а не по кадрам (§3.7), и это не стиль.
+ *  Первая версия считала кадры, и на живом сайте это стоило видимого
+ *  дефекта: `requestAnimationFrame` в скрытой вкладке не идёт вовсе.
+ *  Человек, ушедший на другую вкладку в первые полторы секунды,
+ *  возвращался к заголовкам, навсегда застывшим глифами: кадры встали
+ *  на середине, страховка к тому времени уже отработала, а повторно
+ *  расшифровать мешает `data-decoded`. Найдено глазами 07.08.2026
+ *  (§12.6-bis).
+ *
+ *  По стенным часам возврат во вкладку чинит себя сам: прошедшего
+ *  времени уже больше отведённого, и первый же кадр пишет готовый
+ *  текст. Ровно тот вывод, который §3.7 сделала про таймер. */
 const GLYPHS = '01<>[]{}/\\|=+*#$%&@ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+/* Мс на «кадр». 17 — это те же 60 Гц, на которых считалась прежняя
+   версия: смена единицы измерения не должна менять длительность,
+   иначе страховка на 1200 мс начнёт срабатывать раньше конца. */
+const DECODE_STEP = 17;
 function decodeText(el) {
   if (REDUCED || !el || el.dataset.decoded) return;
   el.dataset.decoded = '1';
@@ -150,9 +167,11 @@ function decodeText(el) {
   setTimeout(() => { if (el.isConnected) el.textContent = target; }, 1200);
   const len = target.length;
   if (len > 40) return;
-  let frame = 0;
   const total = len * 2 + 8;
+  const t0 = Date.now();
   const tick = () => {
+    const frame = (Date.now() - t0) / DECODE_STEP;
+    if (frame >= total) { el.textContent = target; return; }
     let out = '';
     for (let i = 0; i < len; i++) {
       if (target[i] === ' ') { out += ' '; continue; }
@@ -162,8 +181,7 @@ function decodeText(el) {
       else out += '';
     }
     el.textContent = out;
-    if (frame++ < total) requestAnimationFrame(tick);
-    else el.textContent = target;
+    requestAnimationFrame(tick);
   };
   requestAnimationFrame(tick);
 }

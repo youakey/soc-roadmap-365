@@ -205,9 +205,22 @@ const Fx = {
     if (el._fxT) clearTimeout(el._fxT);
     el._fxT = setTimeout(() => { if (el.isConnected) el.textContent = target; }, 700 + delay);
 
-    let frame = 0;
+    /* По СТЕННЫМ ЧАСАМ, а не по кадрам (§3.7). Счёт кадрами здесь
+       той же породы, что в decodeText, и той же ценой: в скрытой
+       вкладке `requestAnimationFrame` не идёт, и показатель застывает
+       глифами до следующей смены значения — а показатель Zero может
+       не меняться неделями. Возврат во вкладку теперь чинит себя сам:
+       прошедшего времени больше отведённого, первый кадр пишет число
+       (§12.6-bis). */
     const total = len * 2 + 6;
+    /* Отсчёт начинается в момент ПЕРВОГО кадра, а не вызова: между
+       ними стоит `delay`, и заведи мы точку отсчёта здесь — у дальних
+       ячеек всё отведённое время вышло бы ещё до старта, и они
+       перещёлкнули бы значение без единой промежуточной картинки. */
+    let t0 = 0;
     const step = () => {
+      const frame = (Date.now() - t0) / 17;
+      if (frame >= total) { el.textContent = target; el._fxRaf = null; return; }
       let out = '';
       for (let i = 0; i < len; i++) {
         const ch = target.charAt(i);
@@ -217,9 +230,8 @@ const Fx = {
         else out += GL.charAt((Math.random() * GL.length) | 0);
       }
       el.textContent = out;
-      if (frame++ < total) el._fxRaf = requestAnimationFrame(step);
-      else { el.textContent = target; el._fxRaf = null; }
+      el._fxRaf = requestAnimationFrame(step);
     };
-    setTimeout(() => { el._fxRaf = requestAnimationFrame(step); }, delay);
+    setTimeout(() => { t0 = Date.now(); el._fxRaf = requestAnimationFrame(step); }, delay);
   }
 };
