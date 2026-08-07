@@ -88,7 +88,14 @@ const PERSON_FIELDS = [
   { id: 'daily',     label: 'DAILY BOX',  type: 'text', max: 60,  def: '',  hint: 'повседневная машина' },
   { id: 'lab',       label: 'LAB BOX',    type: 'text', max: 60,  def: '',  hint: 'машина под лабораторию' },
   { id: 'ram',       label: 'LAB RAM',    type: 'num',  min: 2, max: 512, def: 16, hint: 'ГБ памяти на лабораторной' },
-  { id: 'budget',    label: 'BUDGET',     type: 'num',  min: 0, max: 10000, def: 0, hint: '$ в месяц на обучение' },
+  { id: 'budget',    label: 'BUDGET',     type: 'num',  min: 0, max: 10000, def: 0, hint: 'сколько в месяц на обучение' },
+  /* Валюта — ПОДПИСЬ, а не курс. Влияет ровно на одну строку: потолок,
+     который человек назвал себе сам. Цены платформ (TryHackMe,
+     LetsDefend, italki) остаются в долларах, потому что они и правда
+     в долларах — это трек, а не человек (§13.2-bis). Пересчёта
+     по курсу нет намеренно: курс пришлось бы откуда-то брать,
+     а это сетевая зависимость ради косметики. */
+  { id: 'cur',       label: 'CURRENCY',   type: 'text', max: 8, def: '$', hint: 'валюта своего бюджета' },
   { id: 'dhours',    label: 'H / DAY',    type: 'num',  min: 0, max: 16,  def: 3,  hint: 'часов в день' },
   { id: 'wdays',     label: 'D / WEEK',   type: 'num',  min: 1, max: 7,   def: 5,  hint: 'дней в неделю' },
   { id: 'lang2',     label: '2ND LANG',   type: 'text', max: 30,  def: '',  hint: 'второй язык кроме английского' }
@@ -275,6 +282,15 @@ const Person = {
       restdays: String(Math.max(0, 7 - Math.round(days))),
       remote: region2(s('region', '')),
       budget: String(budget),
+      /* Готовая подпись, а не два поля рядом: собрать «100 $» в шаблоне
+         значило бы решить за человека, где стоит знак валюты, — а он
+         стоит по-разному. Здесь порядок один и суффиксный, потому что
+         текст вокруг русский: «150 BYN в месяц» читается, «BYN150» нет. */
+      budget_own: budget + ' ' + s('cur', '$'),
+      cur: s('cur', '$'),
+      /* Порог задан в долларах — это цена BTLO Pro (£15/мес). При другой
+         валюте он становится грубой прикидкой, и это цена отказа
+         от пересчёта по курсу, а не недосмотр (§13.2-quinquies). */
       budget_if: budget >= 15 ? 'бюджет это позволяет' : 'если появится бюджет',
       student_price: student
         ? 'проверь Student Pricing — по студенческому существенная скидка'
