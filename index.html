@@ -54,10 +54,10 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="SOC 365">
 <meta name="robots" content="noindex, nofollow">
-<link rel="manifest" href="manifest.webmanifest?v=45">
-<link rel="apple-touch-icon" href="icon.svg?v=45">
-<link rel="icon" href="icon.svg?v=45" type="image/svg+xml">
-<link rel="stylesheet" href="styles.css?v=45">
+<link rel="manifest" href="manifest.webmanifest?v=47">
+<link rel="apple-touch-icon" href="icon.svg?v=47">
+<link rel="icon" href="icon.svg?v=47" type="image/svg+xml">
+<link rel="stylesheet" href="styles.css?v=47">
 
 <!-- ══════════ ЭКРАН ЗАГРУЗКИ (§12.6-ter) ══════════
      Стили ИНЛАЙНОМ и разметка ПЕРВЫМ узлом body — иначе «с первого
@@ -95,7 +95,7 @@
      Ничего нового между ними не вставляется без пересчёта. */
   #boot{position:fixed;inset:0;z-index:9999;overflow:hidden;
         background:radial-gradient(120% 90% at 50% 44%,#0a1420 0%,#05080d 58%,#02040a 100%);
-        color:#7de3d8;font:500 12px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;
+        color:#8dff7a;font:500 12px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;
         letter-spacing:.14em}
   #boot::before{content:"";position:absolute;inset:-2px;opacity:.20;
     background:linear-gradient(rgba(45,226,230,.09) 1px,transparent 1px) 0 0/100% 38px,
@@ -109,26 +109,26 @@
 
   /* ── верх-центр ─────────────────────────────────────────── */
   .boot-top{position:absolute;top:26px;left:0;right:0;text-align:center;font-size:10px;
-            color:#3f6f6c;letter-spacing:.28em;opacity:0;animation:frIn .6s ease .5s forwards}
-  .boot-top b{font-weight:500;color:#7de3d8}
+            color:#4a7d55;letter-spacing:.28em;opacity:0;animation:frIn 0.37s ease .5s forwards}
+  .boot-top b{font-weight:500;color:#8dff7a}
   .boot-bars{position:absolute;top:54px;left:50%;transform:translateX(-50%);
              display:flex;align-items:flex-end;gap:4px;height:26px;opacity:0;
-             animation:frIn .6s ease .85s forwards}
-  .boot-bars i{width:4px;background:linear-gradient(180deg,#ff4aa8,#2de2e6);
-               animation:barJump 1.3s ease-in-out infinite}
+             animation:frIn 0.37s ease .85s forwards}
+  .boot-bars i{width:4px;background:linear-gradient(180deg,#7eff5c,#2de2e6);
+               animation:barJump 0.81s ease-in-out infinite}
   @keyframes barJump{0%,100%{transform:scaleY(.3)}50%{transform:scaleY(1)}}
   .boot-rule{position:absolute;left:16%;right:16%;height:8px;opacity:0;top:96px;
     background:repeating-linear-gradient(90deg,rgba(45,226,230,.4) 0 1px,transparent 1px 13px);
-    animation:frIn .6s ease .9s forwards}
+    animation:frIn 0.37s ease .9s forwards}
 
   /* ── верх-края ──────────────────────────────────────────── */
   .boot-pan{position:absolute;top:118px;display:grid;gap:5px;font-size:9px;
-            letter-spacing:.18em;color:#3f6f6c;opacity:0;animation:frIn .6s ease .8s forwards}
+            letter-spacing:.18em;color:#4a7d55;opacity:0;animation:frIn 0.37s ease .8s forwards}
   .boot-pan span{border:1px solid rgba(45,226,230,.2);padding:3px 8px;
                  background:rgba(45,226,230,.04)}
-  .boot-pan b{font-weight:500;color:#7de3d8}
+  .boot-pan b{font-weight:500;color:#8dff7a}
   .boot-pan.tl{left:26px}
-  .boot-pan.tr{right:26px;text-align:right;animation-delay:.95s}
+  .boot-pan.tr{right:26px;text-align:right;animation-delay:0.43s}
 
   /* ── середина: колонки консольного текста ───────────────────
      Мелкий текст в две колонки по краям — то, чем заполняется
@@ -141,21 +141,21 @@
      потому что в этот момент вторая копия стоит там же, где первая.
      Двигается ТОЛЬКО transform, то есть композитор без раскладки. */
   .boot-col{position:absolute;top:150px;bottom:120px;width:196px;overflow:hidden;
-            font-size:8.5px;line-height:1.5;letter-spacing:.05em;color:#2f5a58;
-            opacity:0;animation:frIn .7s ease .9s forwards;
+            font-size:8.5px;line-height:1.5;letter-spacing:.05em;color:#3f6b45;
+            opacity:0;animation:frIn 0.44s ease .9s forwards;
             -webkit-mask:linear-gradient(180deg,transparent,#000 12%,#000 88%,transparent);
             mask:linear-gradient(180deg,transparent,#000 12%,#000 88%,transparent)}
   .boot-col.l{left:26px}
-  .boot-col.r{right:26px;text-align:right;animation-delay:1s}
-  .boot-col.l2{left:232px;width:180px;animation-delay:1.15s;opacity:0}
-  .boot-col.r2{right:232px;width:180px;text-align:right;animation-delay:1.3s;opacity:0}
-  .boot-col div{animation:colRun 14s linear infinite}
-  .boot-col.r div{animation-duration:19s}
-  .boot-col.l2 div{animation-duration:11s;animation-direction:reverse}
-  .boot-col.r2 div{animation-duration:16s}
+  .boot-col.r{right:26px;text-align:right;animation-delay:0.45s}
+  .boot-col.l2{left:232px;width:180px;animation-delay:0.52s;opacity:0}
+  .boot-col.r2{right:232px;width:180px;text-align:right;animation-delay:0.59s;opacity:0}
+  .boot-col div{animation:colRun 8.75s linear infinite}
+  .boot-col.r div{animation-duration:9s}
+  .boot-col.l2 div{animation-duration:6s;animation-direction:reverse}
+  .boot-col.r2 div{animation-duration:8s}
   @keyframes colRun{from{transform:translateY(0)}to{transform:translateY(-50%)}}
-  .boot-col u{text-decoration:none;color:#7de3d8}
-  .boot-col s{text-decoration:none;color:#ff4aa8}
+  .boot-col u{text-decoration:none;color:#8dff7a}
+  .boot-col s{text-decoration:none;color:#ff2a3a;text-shadow:0 0 8px rgba(255,42,58,.7)}
   .boot-col em{font-style:normal;display:block;white-space:nowrap}
 
   /* ── низ-центр ──────────────────────────────────────────── */
@@ -163,62 +163,63 @@
             gap:13px;text-align:center;padding:0 260px}
   .boot-t{font-size:17px;letter-spacing:.5em;text-indent:.5em;color:#dff8f5;
           text-shadow:0 0 14px rgba(45,226,230,.7),0 0 34px rgba(45,226,230,.25);
-          opacity:0;animation:bootFade .6s ease .55s forwards}
-  .boot-log{display:grid;gap:4px;font-size:10.5px;color:#4f8b87}
-  .boot-log b{font-weight:500;opacity:0;animation:bootFade .3s ease forwards}
-  .boot-log b:nth-child(1){animation-delay:.70s}
-  .boot-log b:nth-child(2){animation-delay:.84s}
-  .boot-log b:nth-child(3){animation-delay:.98s}
-  .boot-log b:nth-child(4){animation-delay:1.12s}
-  .boot-cur{color:#7de3d8;animation-delay:1.26s}
-  .boot-cur i{font-style:normal;animation:curBlink 1s steps(1,end) infinite}
+          opacity:0;animation:bootFade 0.37s ease .55s forwards}
+  .boot-log{display:grid;gap:4px;font-size:10.5px;color:#63a06e}
+  .boot-log b{font-weight:500;opacity:0;animation:bootFade 0.19s ease forwards}
+  .boot-log b:nth-child(1){animation-delay:0.32s}
+  .boot-log b:nth-child(2){animation-delay:0.38s}
+  .boot-log b:nth-child(3){animation-delay:0.45s}
+  .boot-log b:nth-child(4){animation-delay:0.51s}
+  .boot-cur{color:#8dff7a;animation-delay:0.57s}
+  .boot-cur i{font-style:normal;animation:curBlink 0.62s steps(1,end) infinite}
   @keyframes curBlink{0%,49%{opacity:1}50%,100%{opacity:0}}
   .boot-bar{width:230px;height:2px;background:rgba(45,226,230,.14);overflow:hidden;
             box-shadow:0 0 12px rgba(45,226,230,.22)}
   .boot-bar i{display:block;height:100%;width:36%;
-    background:linear-gradient(90deg,transparent,#2de2e6 42%,#ff4aa8 88%,transparent);
-    animation:bootBar 1.1s cubic-bezier(.6,0,.4,1) .5s infinite}
+    background:linear-gradient(90deg,transparent,#2de2e6 42%,#7eff5c 88%,transparent);
+    animation:bootBar 0.69s cubic-bezier(.6,0,.4,1) .5s infinite}
   @keyframes bootBar{0%{transform:translateX(-110%)}100%{transform:translateX(380%)}}
   .boot-pct{font-size:11px;color:#2de2e6;letter-spacing:.3em;opacity:0;
-            animation:bootFade .4s ease 1.3s forwards}
-  .boot-pct span{color:#3f6f6c}
+            animation:bootFade 0.25s ease 1.3s forwards}
+  .boot-pct span{color:#4a7d55}
 
   /* ── низ-края ───────────────────────────────────────────── */
   .boot-code{position:absolute;left:26px;bottom:26px;width:260px;display:grid;gap:3px;
-             font-size:8.5px;letter-spacing:.08em;color:#356a67}
-  .boot-code span{opacity:0;animation:bootFade .22s ease forwards;white-space:nowrap;
+             font-size:8.5px;letter-spacing:.08em;color:#46785a}
+  .boot-code s{text-decoration:none;color:#ff2a3a;text-shadow:0 0 8px rgba(255,42,58,.7)}
+  .boot-code span{opacity:0;animation:bootFade 0.14s ease forwards;white-space:nowrap;
                   overflow:hidden;text-overflow:ellipsis}
-  .boot-code span:nth-child(1){animation-delay:1.20s}
-  .boot-code span:nth-child(2){animation-delay:1.31s}
-  .boot-code span:nth-child(3){animation-delay:1.42s}
-  .boot-code span:nth-child(4){animation-delay:1.53s}
-  .boot-code span:nth-child(5){animation-delay:1.64s;color:#7de3d8}
-  .boot-code span:nth-child(6){animation-delay:1.75s}
-  .boot-code span:nth-child(7){animation-delay:1.86s}
-  .boot-code span:nth-child(8){animation-delay:1.97s;color:#ff4aa8}
+  .boot-code span:nth-child(1){animation-delay:0.55s}
+  .boot-code span:nth-child(2){animation-delay:0.60s}
+  .boot-code span:nth-child(3){animation-delay:0.65s}
+  .boot-code span:nth-child(4){animation-delay:0.70s}
+  .boot-code span:nth-child(5){animation-delay:0.75s;color:#8dff7a}
+  .boot-code span:nth-child(6){animation-delay:0.80s}
+  .boot-code span:nth-child(7){animation-delay:0.85s}
+  .boot-code span:nth-child(8){animation-delay:0.90s;color:#ff2a3a}
   .boot-wave{position:absolute;right:26px;bottom:26px;display:flex;align-items:center;
-             gap:3px;height:34px;opacity:0;animation:frIn .5s ease 1.2s forwards}
+             gap:3px;height:34px;opacity:0;animation:frIn 0.31s ease 1.2s forwards}
   .boot-wave i{width:3px;background:#2de2e6;box-shadow:0 0 6px rgba(45,226,230,.55);
-               animation:wv 1.1s ease-in-out infinite}
-  .boot-wave i:nth-child(2n){background:#ff4aa8;box-shadow:0 0 6px rgba(255,74,168,.45)}
+               animation:wv 0.69s ease-in-out infinite}
+  .boot-wave i:nth-child(2n){background:#7eff5c;box-shadow:0 0 6px rgba(126,255,92,.5)}
   @keyframes wv{0%,100%{transform:scaleY(.25)}50%{transform:scaleY(1)}}
 
   /* Угловые скобки. Мерцание ступенчатое (steps), а не плавное:
      плавное читается как «дышит», ступенчатое — как «сигнал». */
   .boot-fr{position:absolute;width:56px;height:56px;border:1px solid rgba(45,226,230,.5);
            box-shadow:0 0 14px rgba(45,226,230,.18);opacity:0;
-           animation:frIn .5s ease .25s forwards,frFlick 3.1s steps(1,end) 1s infinite}
+           animation:frIn 0.31s ease .25s forwards,frFlick 3.1s steps(1,end) 1s infinite}
   .boot-fr.tl{top:14px;left:14px;border-right:0;border-bottom:0}
-  .boot-fr.tr{top:14px;right:14px;border-left:0;border-bottom:0;animation-delay:.32s,1.4s}
-  .boot-fr.bl{bottom:14px;left:14px;border-right:0;border-top:0;animation-delay:.39s,2.2s}
-  .boot-fr.br{bottom:14px;right:14px;border-left:0;border-top:0;animation-delay:.46s,1.8s}
+  .boot-fr.tr{top:14px;right:14px;border-left:0;border-bottom:0;animation-delay:0.15s,1.4s}
+  .boot-fr.bl{bottom:14px;left:14px;border-right:0;border-top:0;animation-delay:0.18s,2.2s}
+  .boot-fr.br{bottom:14px;right:14px;border-left:0;border-top:0;animation-delay:0.21s,1.8s}
   @keyframes frFlick{0%,92%{opacity:1}93%{opacity:.25}95%{opacity:1}96%{opacity:.4}97%,100%{opacity:1}}
 
   /* Тряска всего слоя: экран «сорвало». Ступенчатая функция,
      а не плавная, — плавная читается как качание, ступенчатая
      как сбой развёртки. Трансформ на самом оверлее безопасен:
      внутри него нет ни одного fixed-элемента (§3.5-bis). */
-  #boot.blast{animation:crash .5s steps(1,end) forwards}
+  #boot.blast{animation:crash 0.31s steps(1,end) forwards}
   @keyframes crash{
     0%  {transform:translate(0,0)}
     8%  {transform:translate(-9px,3px)}
@@ -232,8 +233,8 @@
 
   /* Вспышка в момент разрыва. Один узел, гаснет за 0.4 с. */
   #boot.blast::after{content:"";position:absolute;inset:0;pointer-events:none;
-    background:radial-gradient(circle at 50% 44%,rgba(45,226,230,.5),rgba(255,74,168,.16) 32%,transparent 60%);
-    animation:blastFlash .4s ease-out forwards}
+    background:radial-gradient(circle at 50% 44%,rgba(45,226,230,.5),rgba(255,42,58,.20) 32%,transparent 60%);
+    animation:blastFlash 0.25s ease-out forwards}
   @keyframes blastFlash{0%{opacity:0}16%{opacity:1}100%{opacity:0}}
   /* ── Разлёт обвязки ────────────────────────────────────────
      Текст не гаснет, а УЛЕТАЕТ за края, каждый в свою сторону —
@@ -251,7 +252,7 @@
   #boot.blast .boot-pan,#boot.blast .boot-col,#boot.blast .boot-code,
   #boot.blast .boot-wave,#boot.blast .boot-fr,#boot.blast .boot-t,
   #boot.blast .boot-log b,#boot.blast .boot-bar,#boot.blast .boot-pct{
-    animation:shrapnel .62s cubic-bezier(.55,0,.95,.35) forwards;
+    animation:shrapnel 0.39s cubic-bezier(.55,0,.95,.35) forwards;
     will-change:transform,opacity}
   @keyframes shrapnel{
     0%  {opacity:1;transform:translate(0,0) rotate(0) scale(1)}
@@ -264,10 +265,10 @@
   #boot.blast .boot-rule  {--dx: 0;   --dy:-64vh}
   #boot.blast .boot-pan.tl{--dx:-72vw;--dy:-42vh;--dr:-30deg}
   #boot.blast .boot-pan.tr{--dx: 72vw;--dy:-42vh;--dr: 30deg}
-  #boot.blast .boot-col.l {--dx:-86vw;--dy:-10vh;--dr:-12deg;animation-delay:.03s}
-  #boot.blast .boot-col.l2{--dx:-70vw;--dy: 26vh;--dr:-20deg;animation-delay:.06s}
-  #boot.blast .boot-col.r {--dx: 86vw;--dy:-10vh;--dr: 12deg;animation-delay:.03s}
-  #boot.blast .boot-col.r2{--dx: 70vw;--dy: 26vh;--dr: 20deg;animation-delay:.06s}
+  #boot.blast .boot-col.l {--dx:-86vw;--dy:-10vh;--dr:-12deg;animation-delay:0.01s}
+  #boot.blast .boot-col.l2{--dx:-70vw;--dy: 26vh;--dr:-20deg;animation-delay:0.03s}
+  #boot.blast .boot-col.r {--dx: 86vw;--dy:-10vh;--dr: 12deg;animation-delay:0.01s}
+  #boot.blast .boot-col.r2{--dx: 70vw;--dy: 26vh;--dr: 20deg;animation-delay:0.03s}
   #boot.blast .boot-code  {--dx:-64vw;--dy: 56vh;--dr:-26deg}
   #boot.blast .boot-wave  {--dx: 64vw;--dy: 56vh;--dr: 26deg}
   #boot.blast .boot-fr.tl {--dx:-58vw;--dy:-58vh;--dr:-45deg}
@@ -277,13 +278,13 @@
   /* Нижний блок разлетается ПОСТРОЧНО: пять строк лога — пять
      осколков. Целым куском он улетел бы плитой, а не разорвался. */
   #boot.blast .boot-t          {--dx:-14vw;--dy: 74vh;--dr:-22deg}
-  #boot.blast .boot-log b:nth-child(1){--dx:-46vw;--dy: 52vh;--dr:-34deg;animation-delay:.02s}
-  #boot.blast .boot-log b:nth-child(2){--dx: 40vw;--dy: 60vh;--dr: 28deg;animation-delay:.05s}
-  #boot.blast .boot-log b:nth-child(3){--dx:-30vw;--dy: 78vh;--dr: 18deg;animation-delay:.04s}
-  #boot.blast .boot-log b:nth-child(4){--dx: 52vw;--dy: 44vh;--dr:-24deg;animation-delay:.07s}
-  #boot.blast .boot-log b:nth-child(5){--dx: 10vw;--dy: 86vh;--dr: 40deg;animation-delay:.09s}
-  #boot.blast .boot-bar        {--dx: 24vw;--dy: 70vh;--dr: 32deg;animation-delay:.06s}
-  #boot.blast .boot-pct        {--dx:-22vw;--dy: 82vh;--dr:-38deg;animation-delay:.08s}
+  #boot.blast .boot-log b:nth-child(1){--dx:-46vw;--dy: 52vh;--dr:-34deg;animation-delay:0.01s}
+  #boot.blast .boot-log b:nth-child(2){--dx: 40vw;--dy: 60vh;--dr: 28deg;animation-delay:0.02s}
+  #boot.blast .boot-log b:nth-child(3){--dx:-30vw;--dy: 78vh;--dr: 18deg;animation-delay:0.02s}
+  #boot.blast .boot-log b:nth-child(4){--dx: 52vw;--dy: 44vh;--dr:-24deg;animation-delay:0.03s}
+  #boot.blast .boot-log b:nth-child(5){--dx: 10vw;--dy: 86vh;--dr: 40deg;animation-delay:0.04s}
+  #boot.blast .boot-bar        {--dx: 24vw;--dy: 70vh;--dr: 32deg;animation-delay:0.03s}
+  #boot.blast .boot-pct        {--dx:-22vw;--dy: 82vh;--dr:-38deg;animation-delay:0.04s}
   /* Лента внутри колонки на разлёте замирает: бегущий текст
      в улетающем куске выглядит опечаткой, а не движением. */
   #boot.blast .boot-col div{animation-play-state:paused}
@@ -313,6 +314,58 @@
     #boot.blast .boot-log b,#boot.blast .boot-bar,#boot.blast .boot-pct{
       animation:none;opacity:0;transition:opacity .2s}
   }
+
+  /* ── Мелочь по краям: циферблаты, сетка индикаторов, тикер ──
+     Всё это узлы по 10–40 px. §3.10 считает бюджет по ПЛОЩАДИ,
+     поэтому полсотни крошек дешевле одного слоя во весь экран,
+     и именно так набирается «заполненный экран» без цены за него. */
+  .boot-dial{position:absolute;width:44px;height:44px;border:1px solid rgba(45,226,230,.28);
+             border-radius:50%;opacity:0;animation:frIn .3s ease .5s forwards}
+  .boot-dial::before{content:"";position:absolute;inset:5px;border-radius:50%;
+    border:1px dashed rgba(45,226,230,.35);animation:markRot 4s linear infinite}
+  .boot-dial::after{content:"";position:absolute;left:50%;top:50%;width:2px;height:15px;
+    margin:-15px 0 0 -1px;transform-origin:bottom center;background:#7eff5c;
+    box-shadow:0 0 6px rgba(255,42,58,.85);animation:markRot 1.6s linear infinite}
+  @keyframes markRot{to{transform:rotate(360deg)}}
+  .boot-dial.d1{top:118px;left:236px}
+  .boot-dial.d2{top:118px;right:236px;animation-delay:.6s}
+  .boot-dial.d3{bottom:34px;left:300px;animation-delay:.7s}
+  .boot-dial.d4{bottom:34px;right:300px;animation-delay:.8s}
+
+  /* Сетка индикаторов: 24 клетки, часть моргает. */
+  .boot-grid{position:absolute;display:grid;grid-template-columns:repeat(8,6px);gap:3px;
+             opacity:0;animation:frIn .3s ease .55s forwards}
+  .boot-grid i{width:6px;height:6px;background:rgba(45,226,230,.18)}
+  .boot-grid i:nth-child(3n){background:rgba(45,226,230,.6);animation:cellBlink 1.1s steps(1,end) infinite}
+  .boot-grid i:nth-child(7n){background:rgba(255,176,64,.7);animation:cellBlink 1.7s steps(1,end) infinite}
+  @keyframes cellBlink{0%,60%{opacity:1}61%,100%{opacity:.15}}
+  .boot-grid.g1{top:214px;left:26px}
+  .boot-grid.g2{top:214px;right:26px;animation-delay:.65s}
+
+  /* Тикер по низу: бесконечная лента. Дублирована для бесшовной
+     петли — тот же приём, что у бегущих колонок. */
+  .boot-tick{position:absolute;left:0;right:0;bottom:6px;overflow:hidden;height:13px;
+             font-size:8.5px;letter-spacing:.16em;color:#3a6247;opacity:0;
+             animation:frIn .3s ease .7s forwards;
+             -webkit-mask:linear-gradient(90deg,transparent,#000 8%,#000 92%,transparent);
+                     mask:linear-gradient(90deg,transparent,#000 8%,#000 92%,transparent)}
+  .boot-tick div{display:inline-block;white-space:nowrap;animation:tickRun 18s linear infinite}
+  @keyframes tickRun{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+  @media (max-width:1500px){ .boot-dial.d1,.boot-dial.d2,.boot-grid{display:none} }
+  @media (max-width:900px){ .boot-dial,.boot-tick{display:none} }
+  @media (prefers-reduced-motion:reduce){
+    .boot-dial,.boot-grid,.boot-tick{opacity:1;animation:none}
+    .boot-dial::before,.boot-dial::after,.boot-grid i,.boot-tick div{animation:none}
+  }
+  #boot.blast .boot-dial,#boot.blast .boot-grid,#boot.blast .boot-tick{
+    animation:shrapnel .62s cubic-bezier(.55,0,.95,.35) forwards}
+  #boot.blast .boot-dial.d1{--dx:-56vw;--dy:-46vh;--dr:-90deg}
+  #boot.blast .boot-dial.d2{--dx: 56vw;--dy:-46vh;--dr: 90deg}
+  #boot.blast .boot-dial.d3{--dx:-48vw;--dy: 60vh;--dr:-120deg}
+  #boot.blast .boot-dial.d4{--dx: 48vw;--dy: 60vh;--dr: 120deg}
+  #boot.blast .boot-grid.g1{--dx:-80vw;--dy:-24vh;--dr:-40deg}
+  #boot.blast .boot-grid.g2{--dx: 80vw;--dy:-24vh;--dr: 40deg}
+  #boot.blast .boot-tick{--dx:0;--dy:40vh}
 </style>
 </head>
 <body>
@@ -326,6 +379,11 @@
   <span class="boot-fr tl"></span><span class="boot-fr tr"></span>
   <span class="boot-fr bl"></span><span class="boot-fr br"></span>
 
+  <span class="boot-dial d1"></span><span class="boot-dial d2"></span>
+  <span class="boot-dial d3"></span><span class="boot-dial d4"></span>
+  <div class="boot-grid g1"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+  <div class="boot-grid g2"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+  <div class="boot-tick"><div>&gt; SOC365 KERNEL 4.2.1 &nbsp;·&nbsp; 52 WEEKS / 224 TASKS / 630.8 H &nbsp;·&nbsp; AES-256-GCM &nbsp;·&nbsp; RLS ENFORCED &nbsp;·&nbsp; 0 ANOMALIES &nbsp;·&nbsp; NODE 0x2F &nbsp;·&nbsp; TRACE ON &nbsp;·&nbsp; ENTROPY HIGH &nbsp;·&nbsp; CH01 SECURE &nbsp;·&nbsp; ZERO.CORE ONLINE &nbsp;·&nbsp; &gt; SOC365 KERNEL 4.2.1 &nbsp;·&nbsp; 52 WEEKS / 224 TASKS / 630.8 H &nbsp;·&nbsp; AES-256-GCM &nbsp;·&nbsp; RLS ENFORCED &nbsp;·&nbsp; 0 ANOMALIES &nbsp;·&nbsp; NODE 0x2F &nbsp;·&nbsp; TRACE ON &nbsp;·&nbsp; ENTROPY HIGH &nbsp;·&nbsp; CH01 SECURE &nbsp;·&nbsp; ZERO.CORE ONLINE &nbsp;·&nbsp; </div></div>
   <div class="boot-top">SYS.LINK <b>0x7F</b> · CORE <b>NOMINAL</b> · SEC <b>AES-256</b> · CH <b>01</b></div>
   <div class="boot-bars"><i style="height:35%;animation-delay:0.00s"></i><i style="height:70%;animation-delay:0.08s"></i><i style="height:28%;animation-delay:0.16s"></i><i style="height:88%;animation-delay:0.24s"></i><i style="height:52%;animation-delay:0.32s"></i><i style="height:78%;animation-delay:0.40s"></i><i style="height:33%;animation-delay:0.48s"></i><i style="height:64%;animation-delay:0.56s"></i><i style="height:45%;animation-delay:0.64s"></i><i style="height:82%;animation-delay:0.72s"></i><i style="height:50%;animation-delay:0.80s"></i><i style="height:74%;animation-delay:0.88s"></i></div>
   <div class="boot-rule"></div>
@@ -365,7 +423,7 @@
     <span>&gt; 0x4F2A 0x91BC 0x03DE 0x77A1</span>
     <span>&gt; resolve 224 tasks / 52 weeks</span>
     <span>&gt; handshake complete</span>
-    <span>&gt; awaiting core sync ...</span>
+    <span>&gt; <s>WARN</s> unsigned assets 10 .. audit pending</span>
   </div>
   <div class="boot-wave"><i style="height:20%;animation-delay:0.00s"></i><i style="height:55%;animation-delay:0.06s"></i><i style="height:30%;animation-delay:0.12s"></i><i style="height:80%;animation-delay:0.18s"></i><i style="height:45%;animation-delay:0.24s"></i><i style="height:95%;animation-delay:0.30s"></i><i style="height:35%;animation-delay:0.36s"></i><i style="height:65%;animation-delay:0.42s"></i><i style="height:25%;animation-delay:0.48s"></i><i style="height:75%;animation-delay:0.54s"></i><i style="height:40%;animation-delay:0.60s"></i><i style="height:88%;animation-delay:0.66s"></i><i style="height:30%;animation-delay:0.72s"></i><i style="height:60%;animation-delay:0.78s"></i><i style="height:22%;animation-delay:0.84s"></i><i style="height:70%;animation-delay:0.90s"></i></div>
 </div>
@@ -376,7 +434,7 @@
      и на живом сайте это повесило бы заставку навсегда поверх
      приложения — вместе с её собственной страховкой, лежавшей
      в том же заблокированном теге. Разбор в шапке boot.js. -->
-<script src="boot.js?v=45"></script>
+<script src="boot.js?v=47"></script>
 
 <div class="env" aria-hidden="true">
   <div class="grid"></div>
@@ -463,7 +521,7 @@
 
 <!-- Первым: фреймбастер должен сработать до отрисовки, а хелперы
      экранирования нужны раньше любого рендеринга. -->
-<script src="security.js?v=45"></script>
+<script src="security.js?v=47"></script>
 
 <!-- ЕДИНСТВЕННАЯ ВНЕШНЯЯ ЗАВИСИМОСТЬ — запинена и закрыта хэшем.
 
@@ -483,10 +541,10 @@
         integrity="sha384-fPWur1rx/DE6YtXP/x0MD6dd90RgnVsz5yX/DIg7CcVAnTBZsENWuIcpvVTM39ti"
         crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 
-<script src="config.js?v=45"></script>
-<script src="data-weeks.js?v=45"></script>
-<script src="data.js?v=45"></script>
-<script src="person.js?v=45"></script>
+<script src="config.js?v=47"></script>
+<script src="data-weeks.js?v=47"></script>
+<script src="data.js?v=47"></script>
+<script src="person.js?v=47"></script>
 <!-- Содержание трека (§3.2) — сразу после данных и до store.js:
      он подменяет WEEKS, META, QUARTERS, DAILY, DAY_VARIANTS
      и MILESTONES по месту тем, что лежит в roadmaps.content.
@@ -494,24 +552,24 @@
      происходит в openApp(), после выбора трека и до первой отрисовки.
      Два файла выше остаются в проекте как офлайн-запас — истиной
      они быть перестали. -->
-<script src="content.js?v=45"></script>
-<script src="store.js?v=45"></script>
-<script src="auth.js?v=45"></script>
-<script src="sync.js?v=45"></script>
-<script src="vocab.js?v=45"></script>
+<script src="content.js?v=47"></script>
+<script src="store.js?v=47"></script>
+<script src="auth.js?v=47"></script>
+<script src="sync.js?v=47"></script>
+<script src="vocab.js?v=47"></script>
 <!-- Звук (§12.5) — до app.js: его обработчики зовут Sound напрямую.
      Файлов не грузит и AudioContext при загрузке НЕ создаёт: контекст
      родится только внутри настоящего нажатия, иначе iOS отдаст
      молчащий. По той же причине media-src в CSP остаётся 'none'. -->
-<script src="sound.js?v=45"></script>
+<script src="sound.js?v=47"></script>
 <!-- Спецэффекты (§12.6) — после sound.js: глитч пускает картинку
      и звук из одного места, чтобы они не разъехались во времени.
      До app.js: его обработчики зовут Fx напрямую. Ни одного
      полноэкранного слоя при загрузке не создаёт. -->
-<script src="fx.js?v=45"></script>
+<script src="fx.js?v=47"></script>
 <!-- Zero (§12.3) — до app.js: rToday() зовёт Zero.html() при первой же
      отрисовке. Сам виджет наружу не ходит и connect-src не трогает. -->
-<script src="zero.js?v=45"></script>
-<script src="app.js?v=45"></script>
+<script src="zero.js?v=47"></script>
+<script src="app.js?v=47"></script>
 </body>
 </html>

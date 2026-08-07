@@ -69,7 +69,13 @@
   /* MIN — не «сколько красиво», а «сколько нужно, чтобы сборка
      дочиталась». BLAST — длительность взрыва. MAX — страховка:
      незакрывшийся оверлей это белый экран, а не заставка (§12.6). */
-  var MIN = 1700, BLAST = 1150, MAX = 8000;
+  /* MIN — минимум показа. Взято под СРЕДНЮЮ загрузку, а не под
+     красоту: сборка занимает 0.55 с, и 780 мс дают ей дочитаться
+     плюс мгновение на «собрано». Если приложение не успело —
+     фаза ожидания бесконечна и ждёт ровно столько, сколько нужно.
+     То есть заставка подстраивается снизу порогом, а сверху —
+     готовностью, и ни одна из границ не назначена «на глаз». */
+  var MIN = 780, BLAST = 900, MAX = 6000;
 
   /* Три РАЗНЫХ признака, и путать их нельзя — первая версия путала,
      и `release()` возвращала `handled() === true`, то есть не
@@ -98,7 +104,12 @@
   /* Палитра: циан — конструкция, янтарь — активные узлы, розовый —
      ядро, белёсый — поверхность сферы. Четыре цвета, а не десять:
      пёстрое читается как шум, а не как прибор. */
-  var COL = [[45, 226, 230], [255, 176, 64], [255, 74, 168], [150, 215, 255]];
+  /* Палитра: циан — конструкция, ЯДОВИТО-ЗЕЛЁНЫЙ — активные узлы
+     (тот самый терминальный фосфор), КРАСНЫЙ — ядро и тревога,
+     бледно-зелёный — поверхность сферы. Розовый убран: он читался
+     как неон вывески, а не как терминал. Четыре цвета, а не десять:
+     пёстрое читается как шум, а не как прибор. */
+  var COL = [[45, 226, 230], [126, 255, 92], [255, 42, 58], [168, 240, 190]];
 
   /* ── Корзины отрисовки ────────────────────────────────────
      Ступеней прозрачности 20: глаз не отличает больше, а число
@@ -135,8 +146,8 @@
     return {
       ring: 0, x: x, y: y, z: z, k: col, sz: size || 1,
       sx: Math.cos(a) * d, sy: Math.sin(a) * d,
-      dl: Math.random() * 0.55, p: Math.random(),
-      vx: 0, vy: 0, vz: 0, rr: 0, aa: 0, sp: 0, yy: 0, gl: Math.random(),
+      dl: Math.random() * 0.22, p: Math.random(),
+      vx: 0, vy: 0, vz: 0, tw: 0, rr: 0, aa: 0, sp: 0, yy: 0, gl: Math.random(),
       /* Радиус от центра ПОСТОЯНЕН и нужен ударной волне каждый кадр.
          Тринадцать тысяч Math.sqrt на кадр — это ровно та цена,
          которую платят за «посчитаем на месте, так понятнее». */
@@ -155,7 +166,7 @@
       P.push({
         ring: 1, rr: R + rnd(-2, 2), aa: i / count * TAU, sp: speed, yy: y,
         k: col, sz: size, p: Math.random(), gl: Math.random(),
-        sx: 0, sy: 0, dl: 0, vx: 0, vy: 0, vz: 0, x: 0, y: 0, z: 0,
+        sx: 0, sy: 0, dl: 0, vx: 0, vy: 0, vz: 0, tw: 0, x: 0, y: 0, z: 0,
         rad: Math.sqrt((R) * (R) + y * y)
       });
     }
@@ -328,6 +339,10 @@
            всплытием. */
         var ee = Math.pow((bt - 0.16) / 0.84, 0.68);
         X += p.vx * ee; Y += p.vy * ee; Z += p.vz * ee;
+        /* Кручение вокруг оси Y по дороге — траектория перестаёт
+           быть лучом из центра. */
+        var tw = p.tw * ee, ctw = Math.cos(tw), stw = Math.sin(tw);
+        var tx = X * ctw + Z * stw; Z = -X * stw + Z * ctw; X = tx;
       }
 
       var x1 = X * cosY + Z * sinY, z1 = -X * sinY + Z * cosY;
@@ -338,7 +353,7 @@
 
       var al = 1;
       if (phase === 'in') {
-        var u2 = (t - (p.ring ? p.rr / 460 : p.dl)) / 1.0;
+        var u2 = (t - (p.ring ? p.rr / 1200 : p.dl)) / 0.42;
         if (u2 <= 0) continue;
         if (u2 < 1) {
           var ea = 1 - Math.pow(1 - u2, 3);
@@ -449,7 +464,7 @@
          ради эффекта, который читается и с пятнадцати. */
       ctx.globalCompositeOperation = 'lighter';
       for (q = 0; q < 15; q++) {
-        ctx.fillStyle = 'rgba(190,255,252,' + (Math.random() * 0.16 * dec).toFixed(3) + ')';
+        ctx.fillStyle = 'rgba(200,255,190,' + (Math.random() * 0.18 * dec).toFixed(3) + ')';
         ctx.fillRect(Math.random() * W, Math.random() * H, Math.random() * W * 0.5, 1 + Math.random() * 3);
       }
     }
@@ -463,7 +478,7 @@
         var A = NODES[i], B = NODES[i + 1];
         if (!A.__x || !B.__x) continue;
         if (Math.abs(A.__x - B.__x) + Math.abs(A.__y - B.__y) > W * 0.34) continue;
-        ctx.strokeStyle = 'rgba(255,176,64,' + (0.10 + 0.10 * Math.sin(t * 2 + i)).toFixed(3) + ')';
+        ctx.strokeStyle = 'rgba(126,255,92,' + (0.10 + 0.10 * Math.sin(t * 2 + i)).toFixed(3) + ')';
         ctx.beginPath(); ctx.moveTo(A.__x, A.__y); ctx.lineTo(B.__x, B.__y); ctx.stroke();
       }
 
@@ -475,7 +490,7 @@
         if (!nd || !nd.__x) continue;
         var age = (now - g2.at) / 1100;
         var rSz = 28 - age * 9;
-        ctx.strokeStyle = 'rgba(255,176,64,' + (Math.min(1, age * 5) * (1 - age * 0.5) * 0.85).toFixed(3) + ')';
+        ctx.strokeStyle = 'rgba(255,42,58,' + (Math.min(1, age * 5) * (1 - age * 0.5) * 0.9).toFixed(3) + ')';
         var qx = nd.__x, qy = nd.__y, L = 9;
         for (var qi = 0; qi < 4; qi++) {
           var sxq = qi & 1 ? 1 : -1, syq = qi & 2 ? 1 : -1;
@@ -507,7 +522,7 @@
         for (var jj = 0; jj < R2.n; jj++) {
           var aH = (1 - jj / R2.n) * 0.34;
           if (aH < 0.02) continue;
-          ctx.fillStyle = 'rgba(45,226,230,' + aH.toFixed(3) + ')';
+          ctx.fillStyle = 'rgba(126,255,92,' + aH.toFixed(3) + ')';
           ctx.fillText(HEX[(Math.random() * 16) | 0], rx2, ry2 - jj * 13);
         }
       }
@@ -515,7 +530,7 @@
 
     ctx.globalCompositeOperation = 'source-over';
 
-    if (phase === 'in' && t > 1.6) phase = 'hold';
+    if (phase === 'in' && t > 0.7) phase = 'hold';
     if (phase === 'blast' && bt >= 1) return;
     raf = requestAnimationFrame(frame);
   }
@@ -559,10 +574,22 @@
     for (var i = 0; i < P.length; i++) {
       var p = P[i];
       var d = Math.sqrt(p.x * p.x + p.y * p.y + p.z * p.z) || 1;
-      var sp2 = rnd(600, 1900);
-      p.vx = (p.x / d) * sp2 + rnd(-90, 90);
-      p.vy = (p.y / d) * sp2 + rnd(-90, 90);
-      p.vz = (p.z / d) * sp2;
+      /* ХАОС, а не ровный шар. Чистый радиальный разлёт даёт
+         расширяющуюся скорлупу — красиво, но читается как надувание,
+         а не как взрыв. Поэтому направление СМЕШИВАЕТСЯ со случайным
+         в своей для каждого атома пропорции, а разброс скоростей
+         взят широким: часть осколков уходит мгновенно, часть
+         ковыляет следом. Именно неодновременность и читается
+         как взрыв. */
+      var ra = Math.random() * TAU, rz = rnd(-1, 1);
+      var rr3 = Math.sqrt(Math.max(0, 1 - rz * rz));
+      var mix = rnd(0.30, 0.85);                  // доля радиального
+      var sp2 = rnd(260, 2600) * (0.5 + Math.random() * Math.random() * 1.6);
+      p.vx = ((p.x / d) * mix + Math.cos(ra) * rr3 * (1 - mix)) * sp2;
+      p.vy = ((p.y / d) * mix + rz * (1 - mix)) * sp2;
+      p.vz = ((p.z / d) * mix + Math.sin(ra) * rr3 * (1 - mix)) * sp2;
+      /* Собственное кручение: атом не летит по прямой, его ведёт. */
+      p.tw = rnd(-2.2, 2.2);
     }
 
     /* Звук взрыва просят отдельным событием, а не вызовом Sound:
