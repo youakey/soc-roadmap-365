@@ -211,6 +211,11 @@ const Auth = {
   render() {
     const box = document.getElementById('gateBody');
     const s = this.screen;
+    /* Экран загрузки уходит, как только СТАЛО ЧТО ПОКАЗАТЬ. Здесь
+       это форма входа: сессии нет, ждать больше нечего. Второй
+       выход — openApp(), когда сессия есть. Оба зовут одно и то же
+       и оба идемпотентны (§12.6-ter). */
+    if (s !== 'wait' && window.bootScreen) window.bootScreen.done();
     let h = '';
 
     if (s === 'wait') {

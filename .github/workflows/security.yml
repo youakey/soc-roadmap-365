@@ -92,11 +92,11 @@ jobs:
             eslint@9.13.0 eslint-plugin-security@3.0.1
           # Сначала прогон с показом предупреждений — он нужен как отчёт в логе.
           npx eslint --config eslint.config.mjs \
-            app.js auth.js store.js sync.js vocab.js zero.js sound.js fx.js content.js person.js config.js security.js data.js data-weeks.js tools/*.mjs \
+            app.js auth.js store.js sync.js vocab.js zero.js sound.js fx.js boot.js content.js person.js config.js security.js data.js data-weeks.js tools/*.mjs \
             --max-warnings 400 || true
           # Затем прогон, который валит сборку на ошибках (правила из блока error).
           npx eslint --config eslint.config.mjs \
-            app.js auth.js store.js sync.js vocab.js zero.js sound.js fx.js content.js person.js config.js security.js tools/*.mjs
+            app.js auth.js store.js sync.js vocab.js zero.js sound.js fx.js boot.js content.js person.js config.js security.js tools/*.mjs
 
       # ── 6. Таббар не отклеится снова ────────────────────────
       # Баг кусал дважды: transform на #app делает его containing block

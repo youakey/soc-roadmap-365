@@ -67,6 +67,90 @@
 /* Уровни. Строки, а не числа: в логе и в тесте читаемо. */
 const SND = { MARK: 'mark', ACT: 'act', UI: 'ui' };
 
+/* ══════════════════ БАНК СЭМПЛОВ (§12.5-quater) ══════════════════
+   Владелец принёс десять записей, и §12.5 «синтез вместо файлов»
+   этим отменяется в той части, где файлы справляются лучше. Отменена
+   она НЕ молча: §12.5 обосновывала синтез вслух, поэтому решение
+   записано отдельным разделом, как в §12.5-ter.
+
+   Что синтез удержал за собой и почему это не упрямство:
+
+   · `hover` — высота клетки календаря зависит от закрытых минут.
+     Ровно тот довод, которым §12.5 обосновывала синтез, и сэмплом
+     он не воспроизводится: растяжение сэмпла меняет тембр вместе
+     с высотой, и «услышать месяц рукой» превращается в кашу.
+   · `tick` — раз в секунду в последние десять, высота от остатка.
+     То же самое, плюс частота: 10 сетевых буферов на 10 секунд.
+   · `timer` — пять состояний одним семейством из двух примитивов.
+
+   Файлы грузятся ЛЕНИВО, из `arm()`, то есть на первом настоящем
+   жесте и только при включённом звуке: у человека, который звуком
+   не пользуется, эти 115 КБ не скачиваются вовсе. Это то же правило,
+   что у ленивого `AudioContext` (§12.5-bis), просто применённое
+   к байтам.
+
+   CSP НЕ ТРОНУТА, и это не удача, а выбор способа загрузки.
+   `media-src` управляет тегами `<audio>`/`<video>`; `fetch()`
+   подчиняется `connect-src`, а он уже `'self'`. Поэтому
+   `media-src 'none'` остаётся на месте — строка из §12.5-bis про
+   «ослаблять политику не за чем» в силе. Заодно `decodeAudioData`
+   даёт буфер, который идёт в ТОТ ЖЕ тракт с эхом и шейпером;
+   тег `<audio>` играл бы мимо тракта, мимо ограничителя частоты
+   и мимо бюджета голосов — то есть мимо всего, чем §12.5-ter
+   удерживает интерфейс от превращения в трещотку. */
+
+/** Десять файлов. Имя = имя файла в sfx/ без расширения. */
+const SFX_FILES = ['press', 'pulse', 'done', 'week', 'ach', 'login', 'boot', 'open', 'freeze', 'chord'];
+
+/** Общий множитель сэмплов. Файлы выровнены по RMS −17 дБ, синтез
+ *  живёт в пиках 0.03…0.30 — этот коэффициент сводит одно к другому,
+ *  чтобы лестница уровней осталась ЗА КОДОМ, а не за файлами.
+ *  Одно число на весь банк: подстройка громкости отдельного голоса
+ *  живёт в `g` его строки ниже. */
+const SFX_BASE = 0.45;
+
+/** Голос → сэмпл. `r` — скорость воспроизведения: она же высота,
+ *  и она превращает десять файлов в девятнадцать различимых голосов
+ *  одной семьи. Семья тут не экономия, а замысел: снятие галочки
+ *  обязано звучать роднёй галочки, а отказ — роднёй нажатия.
+ *  `g` — подстройка под соседей по уровню, `c` — цена в бюджете. */
+const SFX_MAP = {
+  /* вехи */
+  done:   { f: 'done',   r: 1.00, g: 1.00, c: 5 , w: 0.4},
+  week:   { f: 'week',   r: 1.00, g: 1.00, c: 3 , w: 0.4},
+  ach:    { f: 'ach',    r: 1.00, g: 1.00, c: 5 , w: 0.5},
+  login:  { f: 'login',  r: 1.00, g: 1.00, c: 3 , w: 0.5},
+  boot:   { f: 'boot',   r: 1.00, g: 1.00, c: 7 , w: 0.55},
+  /* действия */
+  ok:     { f: 'chord',  r: 1.00, g: 0.60, c: 1 , w: 0.28},
+  undo:   { f: 'press',  r: 0.80, g: 0.80, c: 1 , w: 0.2},
+  freeze: { f: 'freeze', r: 1.00, g: 0.85, c: 3 , w: 0.6},
+  drop:   { f: 'done',   r: 0.75, g: 0.70, c: 2 , w: 0.24},
+  err:    { f: 'done',   r: 0.60, g: 0.80, c: 2 , w: 0.3},
+  sync:   { f: 'pulse',  r: 1.60, g: 0.45, c: 1 , w: 0.2},
+  data:   { f: 'pulse',  r: 0.90, g: 0.50, c: 5 , w: 0.35},
+  glitch: { f: 'chord',  r: 0.70, g: 0.75, c: 3 , w: 0.4},
+  /* мелочь интерфейса */
+  nav:    { f: 'pulse',  r: 1.00, g: 0.55, c: 1 , w: 0.22},
+  press:  { f: 'press',  r: 1.00, g: 0.45, c: 1 , w: 0.18},
+  toggle: { f: 'pulse',  r: 1.20, g: 0.50, c: 1 , w: 0.2},
+  open:   { f: 'open',   r: 1.00, g: 0.60, c: 2 , w: 0.24},
+  field:  { f: 'press',  r: 1.35, g: 0.35, c: 1 , w: 0.18},
+  deny:   { f: 'press',  r: 0.55, g: 0.55, c: 1 , w: 0.1}
+};
+
+/* Версия ассетов снимается с СОБСТВЕННОГО тега, а не пишется рядом
+   числом. Иначе `?v=N` пришлось бы поднимать в трёх местах вместо
+   двух, и третье забылось бы первым — ровно та мина, за которую
+   §12.1-ter уже платила зашитой дважды тройкой блоков дня. */
+const SFX_V = (function () {
+  try {
+    const s = document.currentScript && document.currentScript.src;
+    const q = s ? s.indexOf('?') : -1;
+    return q === -1 ? '' : s.slice(q);
+  } catch (e) { return ''; }
+})();
+
 const Sound = {
   ctx: null,
   bus: null,          // общий регулятор громкости, единственная точка VOL
@@ -76,6 +160,10 @@ const Sound = {
   _budget: 0,
   _budgetAt: 0,
   _last: null,        // { имя: время } для ограничителя частоты
+  _buf: null,         // { имя файла: AudioBuffer } — банк, пока не загружен null
+  _bankOn: false,     // загрузка начата
+  bankNote: '',       // что не доехало; пусто — всё в порядке
+  bankReady: 0,       // сколько файлов доехало
 
   /* ── состояние ─────────────────────────────────────────── */
 
@@ -93,7 +181,87 @@ const Sound = {
     const ctx = this._ctx();
     if (!ctx) return null;
     if (ctx.state === 'suspended') { try { ctx.resume(); } catch (e) { /* дальше молчим */ } }
+    this._bank();
     return ctx;
+  },
+
+  /* ── Банк сэмплов ───────────────────────────────────────────
+     Зовётся только из arm(), то есть на первом настоящем жесте
+     и только при включённом звуке.
+
+     Загрузка НЕ блокирует ничего и НЕ бросает. Пока файл не доехал,
+     его голос поёт синтезом — то есть офлайн, медленная сеть
+     и битый файл дают не тишину, а прежний звук. Это не запасной
+     план, а условие: §10 говорит, что офлайн для этого приложения
+     рабочий режим, и трекер не имеет права терять отклик из-за
+     недоехавшего украшения. */
+  _bank() {
+    if (this._bankOn || !this.ctx) return false;
+    /* Нет fetch — нет банка, и это не ошибка: голоса поют синтезом.
+       Проверка не теоретическая, она про стенд, где страница живёт
+       без сети вовсе. */
+    if (typeof fetch !== 'function') { this.bankNote = 'fetch недоступен'; return false; }
+    this._bankOn = true;
+    this._buf = {};
+    const ctx = this.ctx;
+    const fail = [];
+    let done = 0;
+    SFX_FILES.forEach(name => {
+      fetch('sfx/' + name + '.mp3' + SFX_V)
+        .then(r => r.ok ? r.arrayBuffer() : Promise.reject(new Error('HTTP ' + r.status)))
+        /* Колбэчная форма decodeAudioData, а не промис: Safari
+           обещанную версию поддержал позже прочих, а падать здесь
+           нельзя — падение означало бы тишину вместо синтеза. */
+        .then(b => new Promise((ok, no) => ctx.decodeAudioData(b, ok, no)))
+        .then(buf => { this._buf[name] = buf; this.bankReady++; })
+        .catch(e => { fail.push(name + ': ' + (e && e.message ? e.message : e)); })
+        .then(() => {
+          if (++done !== SFX_FILES.length) return;
+          if (!fail.length) return;
+          this.bankNote = `не доехало ${fail.length} из ${SFX_FILES.length}: ${fail.join('; ')}`;
+          console.warn('sound: ' + this.bankNote + ' — эти голоса поют синтезом');
+        });
+    });
+    return true;
+  },
+
+  /** Проиграть сэмпл голоса `name`.
+   *
+   *  Возвращает `null`, когда банк для этого голоса недоступен, —
+   *  и только тогда вызывающий уходит на синтез. Все остальные
+   *  случаи возвращают true/false и означают «обработано»:
+   *  выключенный звук и исчерпанный бюджет обязаны давать ТИШИНУ,
+   *  а не обход через синтез. Иначе бюджет голосов, который и был
+   *  написан против очередей (§12.5-bis), обходился бы сам собой. */
+  _sfx(name, lvl, rateMul) {
+    const m = own(SFX_MAP, name, null);
+    if (!m) return null;
+    const buf = this._buf ? own(this._buf, m.f, null) : null;
+    if (!buf) return null;                       // не доехало — пусть поёт синтез
+
+    const ctx = this._live(lvl);
+    if (!ctx) return false;                      // звук выключен — тишина
+    if (!this._afford(m.c)) return false;        // бюджет исчерпан — тишина, не обход
+
+    const G = this._gain(lvl);
+    /* Эхо выставляется ЗДЕСЬ, а не наследуется. Тракт один на
+       страницу, и `_wet` — его общая настройка: без этой строки
+       нажатие кнопки сразу после загрузочного свелла играло бы
+       с его залом. Ровно тот же класс, что «два правдоподобных
+       числа» из §12.1-ter, только на слух. */
+    this._wet(m.w == null ? 0.25 : m.w);
+    const src = ctx.createBufferSource();
+    src.buffer = buf;
+    src.playbackRate.value = Math.max(0.25, Math.min(4, m.r * (rateMul || 1)));
+    const amp = ctx.createGain();
+    amp.gain.value = G * SFX_BASE * m.g;
+    src.connect(amp);
+    amp.connect(this.out);
+    src.start();
+    /* Узлы снимаются по окончании: страница живёт часами, и сотня
+       висящих BufferSource — это утечка, которую видно не сразу. */
+    src.onended = () => { try { src.disconnect(); amp.disconnect(); } catch (e) { /* уже сняты */ } };
+    return true;
   },
 
   _ctx() {
@@ -315,6 +483,9 @@ const Sound = {
    *  смотрит в терминал, а не на вкладку. Восходящая триада,
    *  низкое тело и песок сверху — «задача принята». */
   done() {
+    /* Сэмпл — первым. null означает «банка нет», и только тогда
+       ниже поёт синтез (§12.5-quater). */
+    const _s = this._sfx('done', SND.MARK); if (_s !== null) return _s;
     const ctx = this._live(SND.MARK); if (!ctx || !this._afford(5)) return false;
     const G = this._gain(SND.MARK); this._wet(0.4);
     this._tone({ f: 587.33, dur: 0.13, type: 'triangle', g: 0.30, lp: 2600, det: 6, lvlGain: G });
@@ -339,6 +510,9 @@ const Sound = {
 
   /** Неделя закрыта. Крупнее галочки, мельче достижения. */
   week() {
+    /* Сэмпл — первым. null означает «банка нет», и только тогда
+       ниже поёт синтез (§12.5-quater). */
+    const _s = this._sfx('week', SND.MARK); if (_s !== null) return _s;
     const ctx = this._live(SND.MARK); if (!ctx || !this._afford(3)) return false;
     const G = this._gain(SND.MARK); this._wet(0.4);
     this._tone({ f: 523.25, dur: 0.11, type: 'triangle', g: 0.26, lp: 3000, det: 5, lvlGain: G });
@@ -351,6 +525,9 @@ const Sound = {
    *  триада сверху. Свип слышен как «что-то открылось», а не
    *  «что-то отметилось». */
   ach() {
+    /* Сэмпл — первым. null означает «банка нет», и только тогда
+       ниже поёт синтез (§12.5-quater). */
+    const _s = this._sfx('ach', SND.MARK); if (_s !== null) return _s;
     const ctx = this._live(SND.MARK); if (!ctx || !this._afford(5)) return false;
     const G = this._gain(SND.MARK); this._wet(0.5);
     this._tone({ f: 220, f2: 1760, dur: 0.42, type: 'sawtooth', g: 0.14, lp: 500, lp2: 4200, q: 3.2, det: 9, lvlGain: G });
@@ -366,6 +543,9 @@ const Sound = {
    *  контекста нет. Это требование §12.5, выполненное
    *  конструкцией, а не проверкой. */
   login() {
+    /* Сэмпл — первым. null означает «банка нет», и только тогда
+       ниже поёт синтез (§12.5-quater). */
+    const _s = this._sfx('login', SND.MARK); if (_s !== null) return _s;
     const ctx = this._live(SND.MARK); if (!ctx || !this._afford(3)) return false;
     const G = this._gain(SND.MARK); this._wet(0.5);
     this._tone({ f: 160, f2: 1400, dur: 0.5, type: 'sawtooth', g: 0.13, lp: 420, lp2: 3600, q: 4, det: 11, lvlGain: G });
@@ -378,6 +558,22 @@ const Sound = {
    *  §12.6: низкий подъём, три засечки, разряд наверху. Длиннее
    *  всего в палитре и звучит ровно один раз за сессию. */
   boot() {
+    /* Единственный голос, где сэмпл и синтез играют ВМЕСТЕ. Причина
+       не в красоте: заставка длится полторы секунды и должна давить
+       низом, а низа в записи почти нет — она снята в середине
+       спектра. Суб синтезируется, потому что бас как раз тот случай,
+       где синтез точнее сэмпла: частота задаётся числом, а не
+       тем, что оказалось в файле. */
+    const _s = this._sfx('boot', SND.MARK);
+    if (_s !== null) {
+      const c2 = this._live(SND.MARK);
+      if (c2 && this._afford(2)) {
+        const G2 = this._gain(SND.MARK);
+        this._tone({ f: 34, f2: 58, dur: 1.35, type: 'sine', g: 0.42, lvlGain: G2 });
+        this._tone({ f: 68, f2: 116, dur: 0.9, type: 'triangle', g: 0.14, lp: 260, lvlGain: G2 });
+      }
+      return _s;
+    }
     const ctx = this._live(SND.MARK); if (!ctx || !this._afford(7)) return false;
     const G = this._gain(SND.MARK); this._wet(0.55);
     this._tone({ f: 55, f2: 220, dur: 1.0, type: 'sawtooth', g: 0.16, lp: 200, lp2: 1800, q: 5, det: 14, lvlGain: G });
@@ -396,6 +592,9 @@ const Sound = {
    *  доля задач недели, закрытая вместе с этой галочкой. Пятая
    *  галочка звучит выше первой. */
   ok(weight) {
+    /* Сэмпл — первым. null означает «банка нет», и только тогда
+       ниже поёт синтез (§12.5-quater). */
+    const _s = this._sfx('ok', SND.ACT, 0.95 + Math.min(1, Math.max(0, Number(weight) || 0)) * 0.3); if (_s !== null) return _s;
     const ctx = this._live(SND.ACT); if (!ctx || !this._afford(1)) return false;
     const G = this._gain(SND.ACT); this._wet(0.28);
     const w = Math.min(1, Math.max(0, Number(weight) || 0));
@@ -407,6 +606,9 @@ const Sound = {
   /** Снятие галочки. Зеркало ok(): вниз и тише. Раньше молчало —
    *  и это читалось как «не сработало». */
   undo() {
+    /* Сэмпл — первым. null означает «банка нет», и только тогда
+       ниже поёт синтез (§12.5-quater). */
+    const _s = this._sfx('undo', SND.ACT); if (_s !== null) return _s;
     const ctx = this._live(SND.ACT); if (!ctx || !this._afford(1)) return false;
     const G = this._gain(SND.ACT); this._wet(0.2);
     this._tone({ f: 520, f2: 360, dur: 0.09, type: 'triangle', g: 0.14, lp: 2200, lvlGain: G });
@@ -458,6 +660,9 @@ const Sound = {
    *  и дорогая — две на квартал (§3.6), звучать она должна
    *  не как остальные кнопки. */
   freeze() {
+    /* Сэмпл — первым. null означает «банка нет», и только тогда
+       ниже поёт синтез (§12.5-quater). */
+    const _s = this._sfx('freeze', SND.ACT); if (_s !== null) return _s;
     const ctx = this._live(SND.ACT); if (!ctx || !this._afford(3)) return false;
     const G = this._gain(SND.ACT); this._wet(0.6);
     this._tone({ f: 1568, dur: 0.5, type: 'sine', g: 0.13, det: 18, lvlGain: G });
@@ -470,6 +675,9 @@ const Sound = {
    *  Короткая очередь «пакетов» — единственное место, где
    *  повторяющийся ритм уместен, потому что он и есть смысл. */
   data() {
+    /* Сэмпл — первым. null означает «банка нет», и только тогда
+       ниже поёт синтез (§12.5-quater). */
+    const _s = this._sfx('data', SND.ACT); if (_s !== null) return _s;
     const ctx = this._live(SND.ACT); if (!ctx || !this._afford(5)) return false;
     const G = this._gain(SND.ACT); this._wet(0.35);
     for (let i = 0; i < 4; i++) {
@@ -482,6 +690,9 @@ const Sound = {
   /** Удаление. Падение вниз с песком: действие необратимое,
    *  и звучать оно должно тяжелее прочих. */
   drop() {
+    /* Сэмпл — первым. null означает «банка нет», и только тогда
+       ниже поёт синтез (§12.5-quater). */
+    const _s = this._sfx('drop', SND.ACT); if (_s !== null) return _s;
     const ctx = this._live(SND.ACT); if (!ctx || !this._afford(2)) return false;
     const G = this._gain(SND.ACT); this._wet(0.3);
     this._tone({ f: 300, f2: 90, dur: 0.26, type: 'sawtooth', g: 0.14, lp: 1400, lp2: 300, q: 2, det: 9, lvlGain: G });
@@ -493,6 +704,9 @@ const Sound = {
    *  малая секунда внизу. Ни одна другая пара нот в палитре
    *  так не звучит, поэтому спутать нельзя. */
   err() {
+    /* Сэмпл — первым. null означает «банка нет», и только тогда
+       ниже поёт синтез (§12.5-quater). */
+    const _s = this._sfx('err', SND.ACT); if (_s !== null) return _s;
     const ctx = this._live(SND.ACT); if (!ctx || !this._afford(3)) return false;
     const G = this._gain(SND.ACT); this._wet(0.25);
     this._tone({ f: 233.08, dur: 0.26, type: 'sawtooth', g: 0.13, lp: 900, q: 1.4, det: 10, lvlGain: G });
@@ -505,6 +719,11 @@ const Sound = {
    *  ограничитель на секунду: синхронизация может дёргаться. */
   sync(state) {
     if (!this._rate('sync', 900)) return false;
+    /* Сэмпл — после ограничителя. Случай 'err' пропускается
+       намеренно: он делегирует в err(), и тот сыграет свой
+       сэмпл сам. Перехватить его здесь значило бы озвучить
+       ошибку обычным обменом с сервером. */
+    if (state !== 'err') { const _s = this._sfx('sync', SND.ACT); if (_s !== null) return _s; }
     const ctx = this._live(SND.ACT); if (!ctx || !this._afford(1)) return false;
     const G = this._gain(SND.ACT); this._wet(0.2);
     if (state === 'err') { this._wet(0.25); return this.err(); }
@@ -524,6 +743,10 @@ const Sound = {
    *  до заголовка. */
   nav(idx) {
     if (!this._rate('nav', 70)) return false;
+    /* Сэмпл — после ограничителя частоты и до синтеза: банк
+       не должен обходить то, чем §12.5-ter держит темп.
+       Номер вкладки поднимает высоту — как поднимал её синтез. */
+    const _s = this._sfx('nav', SND.UI, 1 + Math.min(7, Math.max(0, Number(idx) || 0)) * 0.045); if (_s !== null) return _s;
     const ctx = this._live(SND.UI); if (!ctx || !this._afford(2)) return false;
     const G = this._gain(SND.UI); this._wet(0.22);
     const n = Math.min(7, Math.max(0, Number(idx) || 0));
@@ -536,6 +759,9 @@ const Sound = {
    *  самый короткий: 28 мс щелчка и всё. */
   press() {
     if (!this._rate('press', 35)) return false;
+    /* Сэмпл — после ограничителя частоты и до синтеза: банк
+       не должен обходить то, чем §12.5-ter держит темп. */
+    const _s = this._sfx('press', SND.UI); if (_s !== null) return _s;
     const ctx = this._live(SND.UI); if (!ctx || !this._afford(1)) return false;
     const G = this._gain(SND.UI); this._wet(0.18);
     this._noise({ f: 2600, dur: 0.028, g: 0.11, q: 1.8, lvlGain: G });
@@ -546,6 +772,10 @@ const Sound = {
    *  вниз — выключили. Состояние слышно, не глядя на кнопку. */
   toggle(on) {
     if (!this._rate('toggle', 60)) return false;
+    /* Сэмпл — после ограничителя частоты и до синтеза: банк
+       не должен обходить то, чем §12.5-ter держит темп.
+       Включили или выключили — слышно по направлению. */
+    const _s = this._sfx('toggle', SND.UI, on ? 1.15 : 0.9); if (_s !== null) return _s;
     const ctx = this._live(SND.UI); if (!ctx || !this._afford(2)) return false;
     const G = this._gain(SND.UI); this._wet(0.2);
     this._noise({ f: 1500, dur: 0.03, g: 0.12, q: 2.4, lvlGain: G });
@@ -557,6 +787,10 @@ const Sound = {
    *  календаря. Короткий свип в сторону движения. */
   open(isOpen) {
     if (!this._rate('open', 60)) return false;
+    /* Сэмпл — после ограничителя частоты и до синтеза: банк
+       не должен обходить то, чем §12.5-ter держит темп.
+       Раскрыли или свернули. */
+    const _s = this._sfx('open', SND.UI, isOpen ? 1 : 1.25); if (_s !== null) return _s;
     const ctx = this._live(SND.UI); if (!ctx || !this._afford(1)) return false;
     const G = this._gain(SND.UI); this._wet(0.24);
     this._tone({ f: isOpen ? 380 : 760, f2: isOpen ? 760 : 380, dur: 0.09, type: 'triangle', g: 0.12, lp: 2400, lvlGain: G });
@@ -568,6 +802,10 @@ const Sound = {
    *  прокрутка и mousemove оставлены немыми. */
   field(saved) {
     if (!this._rate('field', 60)) return false;
+    /* Сэмпл — после ограничителя частоты и до синтеза: банк
+       не должен обходить то, чем §12.5-ter держит темп.
+       Сохранилось или просто напечаталось. */
+    const _s = this._sfx('field', SND.UI, saved ? 1 : 1.3); if (_s !== null) return _s;
     const ctx = this._live(SND.UI); if (!ctx || !this._afford(1)) return false;
     const G = this._gain(SND.UI); this._wet(0.18);
     if (saved) this._tone({ f: 880, f2: 1174.66, dur: 0.06, type: 'triangle', g: 0.11, lp: 3400, lvlGain: G });
@@ -596,6 +834,9 @@ const Sound = {
    *  стук — понятно, что нажатие услышано и отклонено. */
   deny() {
     if (!this._rate('deny', 120)) return false;
+    /* Сэмпл — после ограничителя частоты и до синтеза: банк
+       не должен обходить то, чем §12.5-ter держит темп. */
+    const _s = this._sfx('deny', SND.UI); if (_s !== null) return _s;
     const ctx = this._live(SND.UI); if (!ctx || !this._afford(1)) return false;
     const G = this._gain(SND.UI); this._wet(0.1);
     this._tone({ f: 150, dur: 0.07, type: 'square', g: 0.10, lp: 500, lvlGain: G });
@@ -607,6 +848,9 @@ const Sound = {
    *  во времени: разряд, который слышно раньше, чем видно, читается
    *  как поломка. */
   glitch() {
+    /* Сэмпл — первым. null означает «банка нет», и только тогда
+       ниже поёт синтез (§12.5-quater). */
+    const _s = this._sfx('glitch', SND.ACT); if (_s !== null) return _s;
     const ctx = this._live(SND.ACT); if (!ctx || !this._afford(3)) return false;
     const G = this._gain(SND.ACT); this._wet(0.45);
     this._noise({ f: 800, f2: 5200, dur: 0.11, g: 0.09, q: 0.6, lvlGain: G });
