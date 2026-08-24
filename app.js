@@ -1986,6 +1986,17 @@ function settingsHtml() {
         <input type="number" inputmode="numeric" min="${f.min}" max="${f.max}"
                value="${esc(String(v))}" data-pf="${esc(f.id)}"></label>`;
     }
+    /* Дата берётся штатным полем браузера, а не тремя списками
+       и не текстом с маской. Причина не в лени: `type="date"`
+       на телефоне открывает системный календарь, а на десктопе
+       сам не пускает 31 февраля — то есть закрывает половину
+       разбора §12.7 до того, как значение дойдёт до кода.
+       Пустое поле здесь ЗАКОННО и означает «дата трека»,
+       поэтому подпись под ним говорит, что будет при пустом. */
+    if (f.type === 'date') {
+      return `<label class="fld"><span>${esc(f.label)} — ${esc(f.hint)}</span>
+        <input type="date" value="${esc(String(v))}" data-pf="${esc(f.id)}"></label>`;
+    }
     return `<label class="fld"><span>${esc(f.label)} — ${esc(f.hint)}</span>
       <input type="text" maxlength="${f.max}" value="${esc(String(v))}"
              data-pf="${esc(f.id)}" placeholder="${esc(own(pv, f.id, ''))}"></label>`;
@@ -2032,6 +2043,10 @@ function wireSettings(root) {
     }
     if (el.tagName === 'SELECT') { el.onchange = () => { Person.set(id, el.value); repaint(true); }; return; }
     if (el.type === 'number') { el.onchange = () => { Person.set(id, el.value); repaint(true); }; return; }
+    /* Дата — по `change`, как число и список. На `input` браузер
+       отдаёт значение посреди набора года («0002-01-01»), и трек
+       на миг уезжал бы в первый век. */
+    if (el.type === 'date') { el.onchange = () => { Person.set(id, el.value); repaint(true); }; return; }
     /* Пересборка на каждую букву перерисовала бы поле и увела фокус.
        Поэтому набор только сохраняется, а пересчёт — по уходу фокуса. */
     el.oninput = () => { Person.set(id, el.value); Person.schedule(Auth.sb, Auth.user); };

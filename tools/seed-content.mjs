@@ -92,15 +92,33 @@ async function readData() {
      для того, чтобы СВЕРИТЬ шаблоны с настоящим списком имён, а не
      с копией этого списка, заведённой здесь. Копия разъехалась бы —
      §11.5 уже заплатила за это списком аватаров в двух местах. */
+  /* Заглушки БРАУЗЕРА, а не заглушки ПРАВИЛ. Раньше здесь лежали
+     собственные `own()` и `safeParse()`, и это была ровно та копия,
+     за которую §11.5 уже платила списком аватаров в двух местах:
+     копия правила однажды расходится с оригиналом молча.
+
+     Теперь в песочницу поднимаются настоящие `security.js`
+     и `content.js` — те же файлы, что и на странице. Фреймбастеру
+     хватает `window`, у которого `top === self`: он выходит первой
+     же строкой и до `document` не доходит.
+
+     Побочная выгода важнее удобства: из этой же песочницы снимаются
+     ответы клиентских правил — `Content._qDates` и `Content._isDate`, —
+     и `verify()` сверяет их с здешними. Без такой сверки два
+     написания одного правила расходятся молча (§12.1-ter). Заметь:
+     сверка нужна ОТДЕЛЬНАЯ, сам по себе прогон её не делает —
+     снимок данных берётся ДО person.js, и мутация в `_qDates`
+     проходила через `--check` зелёной. Проверено. */
   const shim = `
-    function own(o, k, d) {
-      return o && typeof k === 'string' && Object.prototype.hasOwnProperty.call(o, k) ? o[k] : d;
-    }
-    function safeParse() { return null; }
-    var localStorage = null, console = { warn: function () {} };
+    var window = {}; window.top = window; window.self = window;
+    window.addEventListener = function () {};
+    var localStorage = null, console = { warn: function () {}, log: function () {} };
   `;
+  const secSrc = await readFile(new URL('security.js', ROOT), 'utf8');
+  const contentSrc = await readFile(new URL('content.js', ROOT), 'utf8');
   const personSrc = await readFile(new URL('person.js', ROOT), 'utf8');
-  vm.runInContext(shim + '\n;\n' + personSrc, ctx, { filename: 'person.js', timeout: 5000 });
+  vm.runInContext([shim, secSrc, contentSrc, personSrc].join('\n;\n'),
+                  ctx, { filename: 'person.js', timeout: 5000 });
   const vars = vm.runInContext('Person.vars()', ctx);
   const applied = vm.runInContext('WEEKS.map(w => w.tasks.slice())', ctx);
   const raws = vm.runInContext(`({
@@ -109,7 +127,19 @@ async function readData() {
     CV_TEXT_RAW, COLD_EMAIL_RAW
   })`, ctx);
 
-  return { ...snap, vars, applied, raws };
+  /* Ответы КЛИЕНТСКИХ правил, снятые из той же песочницы. Нужны,
+     чтобы сверить два независимых написания одного правила, а не
+     поверить, что они совпадают. Что именно проверяется — в `verify`. */
+  const client = vm.runInContext(`({
+    qDates: Object.keys(QUARTERS).sort().map(k => {
+      const ws = WEEKS.filter(w => String(w.q) === String(k));
+      return ws.length ? [k, ws[0].start, ws[ws.length - 1].end, Content._qDates(ws[0].start, ws[ws.length - 1].end)] : null;
+    }).filter(Boolean),
+    days: ['2026-08-31', '2026-02-31', '2027-13-01', '2026-8-31', '', '2028-02-29']
+            .map(x => [x, Content._isDate(x)])
+  })`, ctx);
+
+  return { ...snap, vars, applied, raws, client };
 }
 
 /* ── 2. Производные, которые обязаны сойтись ────────────────
@@ -135,6 +165,36 @@ function verify(d) {
   const { WEEKS, META, QUARTERS, DAILY, DAY_VARIANTS, MILESTONES } = d;
   const errs = [];
   const N = WEEKS.length;
+
+  /* ── Два написания одного правила обязаны совпадать ──
+     Подпись квартала считается здесь (`quarterDates`) и на клиенте
+     (`Content._qDates`, §12.7): генератор собирает её при сидинге,
+     клиент пересобирает при персональном старте. Копия правила —
+     это мина §12.1-ter, и закрывается она не дисциплиной, а сверкой:
+     оба написания прогоняются на настоящих границах кварталов,
+     включая тот, что пересекает Новый год.
+
+     Проверено мутацией: «печатать год всегда дважды» в `_qDates`
+     краснит эту сверку и больше ничего во всём CI — то есть без неё
+     расхождение доехало бы до пользователя молча. */
+  (d.client && d.client.qDates || []).forEach(([k, a, b, got]) => {
+    const want = quarterDates(a, b);
+    if (got !== want) {
+      errs.push(`Content._qDates(Q${k}) «${got}» ≠ «${want}» — правило подписи квартала разошлось с генератором`);
+    }
+  });
+  if (!d.client || !d.client.qDates || !d.client.qDates.length) {
+    errs.push('клиентский _qDates не снят — сверка правил не выполнена');
+  }
+
+  /* То же и про дату: `isDay` в security.js — единственное место,
+     где живёт «это существующий день». Форма без круга пропускает
+     31 февраля, а `Date.parse` молча отдаёт 3 марта (§12.7-bis). */
+  const dayWant = { '2026-08-31': true, '2026-02-31': false, '2027-13-01': false,
+                    '2026-8-31': false, '': false, '2028-02-29': true };
+  (d.client && d.client.days || []).forEach(([x, got]) => {
+    if (got !== dayWant[x]) errs.push(`Content._isDate(«${x}») = ${got}, ожидалось ${dayWant[x]}`);
+  });
 
   if (N < 1) errs.push('недель ноль');
 

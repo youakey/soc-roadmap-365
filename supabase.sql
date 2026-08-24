@@ -718,7 +718,97 @@ create trigger person_guard_biu
   for each row execute function public.person_guard();
 
 
--- ─────────────── 13. ПРОВЕРКА ───────────────
+-- ─────────────── 13. ПЕРСОНАЛЬНАЯ ДАТА СТАРТА (§12.7) ───────────────
+--
+-- Добавлено 24.08.2026. Схема НЕ меняется: дата живёт в уже
+-- существующем `person.params` под ключом `start`, потому что это
+-- параметр человека, а не трека (§13.2-bis). Отдельной колонки
+-- заводить не за чем — `params` ровно для этого и сделан.
+--
+-- Меняется ОДНА функция, и меняется она по правилу §9: «появилась
+-- серверная граница — проверь, что клиент считает по тому же
+-- правилу, а не примерно так же». Клиент после §12.7 считает streak
+-- от персональной даты; граница считала от даты трека. Пока человек
+-- начинает ПОЗЖЕ трека, расхождение безобидно — граница просто
+-- разрешает больше, чем нужно. Стоит кому-то начать РАНЬШЕ — и она
+-- срежет честный streak молча, ровно как §12.1-ter срезала его
+-- на границе, считавшей по сроку жизни трека.
+--
+-- ОТПРАВЛЯТЬ ОТДЕЛЬНО. Тело в `$$ … $$`, а SQL Editor рвёт такие
+-- тела по внутренним `;` (§9). Один этот блок — один Run. После
+-- него сверяться с каталогом, а не с панелью результатов.
+
+create or replace function public.public_stats_guard()
+returns trigger
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  r_weeks int;
+  r_hours numeric;
+  r_start date;
+  p_start date;
+  elapsed int;
+begin
+  -- Владелец строки — только тот, кто пришёл с токеном. RLS это уже
+  -- проверяет; здесь второй рубеж, на случай ошибки в политике.
+  if auth.uid() is not null then
+    new.user_id := auth.uid();
+  end if;
+
+  -- Время ставит сервер. Клиентское updated_at игнорируется: иначе
+  -- в рейтинге можно было бы вечно выглядеть «только что активным».
+  new.updated_at := now();
+
+  select total_weeks, total_hours, start_date
+    into r_weeks, r_hours, r_start
+  from public.roadmaps where id = new.roadmap_id;
+
+  if r_weeks is null then
+    raise exception 'Неизвестный трек: %', new.roadmap_id using errcode = '23503';
+  end if;
+
+  -- Больше недель, чем есть в треке, закрыть нельзя.
+  new.weeks_closed := least(greatest(new.weeks_closed, 0), r_weeks);
+  new.current_week := least(greatest(new.current_week, 1), r_weeks);
+
+  -- Часы: перерабатывать можно, но не в десять раз против плана.
+  new.hours_fact := least(greatest(new.hours_fact, 0), r_hours * 3);
+
+  -- Персональная точка отсчёта (§12.7). Читается защитно и НИКОГДА
+  -- не бросает: `params` — свободный jsonb, клиент границей не
+  -- является (§11.1), и туда можно положить что угодно одним curl.
+  -- Прямой `::date` уронил бы КАЖДУЮ запись в рейтинг у такого
+  -- аккаунта — то есть чужая опечатка стала бы отказом в сервисе
+  -- самому себе. Поэтому форма проверяется регуляркой, а разбор
+  -- идёт через `to_date`, который на несуществующем дне не падает,
+  -- а выбирает соседний. Лишняя мягкость здесь дешевле исключения:
+  -- значение используется только как ВЕРХНЯЯ граница streak.
+  select case
+           when pr.params ->> 'start' ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'
+             then to_date(pr.params ->> 'start', 'YYYY-MM-DD')
+           else null
+         end
+    into p_start
+  from public.person pr
+  where pr.id = new.user_id;
+
+  -- Streak не может быть длиннее, чем человек вообще идёт по треку.
+  -- Нет своей даты — берётся дата трека, то есть прежнее поведение.
+  elapsed := greatest((current_date - coalesce(p_start, r_start))::int + 1, 1);
+  new.streak := least(greatest(new.streak, 0), elapsed);
+
+  new.pct := least(greatest(new.pct, 0), 100);
+
+  return new;
+end $$;
+
+-- Триггер пересоздавать не нужно: он ссылается на функцию по имени,
+-- а `create or replace function` подменяет тело на месте.
+
+
+-- ─────────────── 14. ПРОВЕРКА ───────────────
 select tablename, rowsecurity
 from pg_tables
 where schemaname = 'public'
@@ -784,3 +874,15 @@ order by p.proname;
 select indexname from pg_indexes
 where schemaname = 'public' and tablename = 'vocab'
 order by indexname;
+
+
+-- персональная дата старта доехала до границы? (§12.7)
+-- Ожидание: строка есть, start либо дата, либо пусто.
+select id, params ->> 'start' as person_start
+from public.person;
+
+-- функция пересобрана — в теле обязано быть чтение person
+select p.proname,
+       position('public.person' in pg_get_functiondef(p.oid)) > 0 as reads_person
+from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+where n.nspname = 'public' and p.proname = 'public_stats_guard';
