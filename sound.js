@@ -107,6 +107,22 @@ const SFX_FILES = ['press', 'pulse', 'done', 'week', 'ach', 'login', 'boot', 'op
  *  чтобы лестница уровней осталась ЗА КОДОМ, а не за файлами.
  *  Одно число на весь банк: подстройка громкости отдельного голоса
  *  живёт в `g` его строки ниже. */
+/* Замерено на живой версии 02.09.2026, ?v=50, приёмом §12.7-bis
+   (анализатор между `Sound.bus` и выходом, за ним усилитель с нулём).
+   Пики на выходе тракта:
+
+     MARK  boot .169 · login .127 · ach .103 · week .103 · done .097
+     ACT   timer(start) .090 · grade .086 · undo .085 · tick .084
+           freeze .079 · glitch .076 · data .069 · ok .063 · err .059
+           sync .058 · drop .054 · timer(pause) .067 · timer(add) .063
+           timer(reset) .022
+     UI    deny .058 · open .051 · press .049 · nav .044 · toggle .040
+           field .040 · hover .024
+
+   Главное: САМЫЙ ГРОМКИЙ ACT (.090) тише САМОЙ ТИХОЙ ВЕХИ (.097)
+   с запасом 0.64 дБ. Инверсия, которую §12.7-bis назвала объективной,
+   закрыта. Единственный ACT ниже уровня UI — `timer('reset')` (.022),
+   и таким он был всегда: это шум, а не тон. */
 const SFX_BASE = 0.45;
 
 /** Голос → сэмпл. `r` — скорость воспроизведения: она же высота,
@@ -123,7 +139,7 @@ const SFX_MAP = {
   boot:   { f: 'boot',   r: 1.00, g: 1.00, c: 7 , w: 0.55},
   /* действия */
   ok:     { f: 'chord',  r: 1.00, g: 0.60, c: 1 , w: 0.28},
-  undo:   { f: 'press',  r: 0.80, g: 0.80, c: 1 , w: 0.2},
+  undo:   { f: 'press',  r: 0.80, g: 0.55, c: 1 , w: 0.2},
   freeze: { f: 'freeze', r: 1.00, g: 0.85, c: 3 , w: 0.6},
   drop:   { f: 'done',   r: 0.75, g: 0.70, c: 2 , w: 0.24},
   err:    { f: 'done',   r: 0.60, g: 0.80, c: 2 , w: 0.3},
@@ -504,7 +520,7 @@ const Sound = {
     const ctx = this._live(SND.MARK); if (!ctx || !this._afford(1)) return false;
     const G = this._gain(SND.MARK); this._wet(0.16);
     const step = Math.min(9, Math.max(0, 10 - left));
-    this._tone({ f: 900 + step * 62, dur: 0.045, type: 'square', g: 0.055, lp: 2400, q: 0.7, lvlGain: G });
+    this._tone({ f: 900 + step * 62, dur: 0.045, type: 'square', g: 0.11, lp: 2400, q: 0.7, lvlGain: G });
     return true;
   },
 
@@ -752,8 +768,8 @@ const Sound = {
   grade(known) {
     const ctx = this._live(SND.ACT); if (!ctx || !this._afford(1)) return false;
     const G = this._gain(SND.ACT); this._wet(0.26);
-    if (known) this._tone({ f: 784, f2: 1318.51, dur: 0.09, type: 'triangle', g: 0.10, lp: 3800, det: 5, lvlGain: G });
-    else       this._tone({ f: 440, f2: 311.13, dur: 0.13, type: 'triangle', g: 0.09, lp: 2200, det: 5, lvlGain: G });
+    if (known) this._tone({ f: 784, f2: 1318.51, dur: 0.09, type: 'triangle', g: 0.065, lp: 3800, det: 5, lvlGain: G });
+    else       this._tone({ f: 440, f2: 311.13, dur: 0.13, type: 'triangle', g: 0.058, lp: 2200, det: 5, lvlGain: G });
     return true;
   },
 
@@ -764,15 +780,15 @@ const Sound = {
     const ctx = this._live(SND.ACT); if (!ctx || !this._afford(2)) return false;
     const G = this._gain(SND.ACT); this._wet(0.3);
     if (kind === 'start') {
-      this._tone({ f: 330, f2: 660, dur: 0.14, type: 'sawtooth', g: 0.08, lp: 700, lp2: 3000, q: 3, det: 7, lvlGain: G });
+      this._tone({ f: 330, f2: 660, dur: 0.14, type: 'sawtooth', g: 0.07, lp: 700, lp2: 3000, q: 3, det: 7, lvlGain: G });
     } else if (kind === 'pause') {
-      this._tone({ f: 440, f2: 300, dur: 0.11, type: 'square', g: 0.055, lp: 1600, lvlGain: G });
+      this._tone({ f: 440, f2: 300, dur: 0.11, type: 'square', g: 0.11, lp: 1600, lvlGain: G });
     } else if (kind === 'resume') {
-      this._tone({ f: 300, f2: 520, dur: 0.11, type: 'square', g: 0.055, lp: 1900, lvlGain: G });
+      this._tone({ f: 300, f2: 520, dur: 0.11, type: 'square', g: 0.11, lp: 1900, lvlGain: G });
     } else if (kind === 'reset') {
-      this._noise({ f: 1200, f2: 300, dur: 0.14, g: 0.05, q: 0.9, lvlGain: G });
+      this._noise({ f: 1200, f2: 300, dur: 0.14, g: 0.10, q: 0.9, lvlGain: G });
     } else {                                   // add — добор минут
-      this._tone({ f: 880, f2: 1046.5, dur: 0.07, type: 'triangle', g: 0.065, lp: 3400, lvlGain: G });
+      this._tone({ f: 880, f2: 1046.5, dur: 0.07, type: 'triangle', g: 0.13, lp: 3400, lvlGain: G });
     }
     return true;
   },

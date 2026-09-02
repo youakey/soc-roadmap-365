@@ -275,6 +275,17 @@ code, pre, .mono { font-family: var(--mono); }
   width: 5px; height: 5px; background: var(--cyan); opacity: .7;
 }
 .gate-list b { color: var(--txt-1); font-weight: 600; }
+/* Строка про бесплатность стояла классом `.gate-dim` и была самой
+   БЛЕДНОЙ на экране — прямо над главной кнопкой. Увидено глазами
+   на живой версии 02.09.2026. §7 делает «ядро не режется» главным
+   обещанием продукта; экран его шептал. Здесь не меняется палитра,
+   меняется токен: --txt-3 (самый тусклый) → --txt-2, тот же, каким
+   набран весь остальной текст экрана. */
+.gate-free {
+  font-size: 12.5px; line-height: 1.55; color: var(--txt-2);
+  margin: 0 0 16px; padding-top: 12px;
+  border-top: 1px solid color-mix(in srgb, var(--cyan) 12%, transparent);
+}
 
 .gate-links { display: flex; justify-content: space-between; gap: 12px; margin-top: 14px; }
 .gate-links.one { justify-content: center; }

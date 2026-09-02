@@ -275,7 +275,7 @@ const Auth = {
           <li><b>День из блоков</b> — досидел блок до конца, галочка встаёт сама</li>
           <li><b>Прогресс и серия</b> — серия не обнуляется за один пропуск</li>
         </ul>
-        <p class="gate-dim">Трек целиком бесплатный.</p>
+        <p class="gate-free">Трек целиком бесплатный.</p>
         <button class="btn primary wide" data-go="signup">Начать</button>
         <div class="gate-links one">
           <button class="linkbtn" data-go="signin">Уже есть аккаунт</button>
