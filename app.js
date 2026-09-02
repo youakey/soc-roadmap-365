@@ -2420,6 +2420,18 @@ const Tracks = {
   }
 };
 
+/** Ближайший понедельник, считая сегодняшний. Дата — это `isDay()`
+ *  и ничего кроме (§12.7): собираем строку из локальных частей,
+ *  а не через `toISOString()`, иначе у восточных поясов вечером
+ *  вернётся вчерашний день. */
+function nextMonday() {
+  const d = new Date();
+  d.setHours(12, 0, 0, 0);
+  d.setDate(d.getDate() + ((8 - (d.getDay() || 7)) % 7));
+  const p2 = n => String(n).padStart(2, '0');
+  return d.getFullYear() + '-' + p2(d.getMonth() + 1) + '-' + p2(d.getDate());
+}
+
 function showPicker() {
   const box = $('#pickerBody');
   $('#picker').style.display = 'grid';
@@ -2458,12 +2470,17 @@ function showPicker() {
         <b>Нужен трек под себя?</b>
         <small>Соберу индивидуально под твою цель, время и железо.</small>
       </span>
-    </div>`;
+    </div>
+    <label class="fld pick-start"><span>START</span>
+      <input type="date" id="pickStart" value="${esc(startDefault())}">
+      <small class="tiny dim">Недели считаются от этой даты. Можно поменять позже в SETTINGS.</small>
+    </label>`;
 
   $$('#picker [data-track]').forEach(b => b.onclick = async () => {
     b.disabled = true;
     try {
       await Tracks.pick(b.dataset.track);
+      await applyStartFromPicker();
       $('#picker').style.display = 'none';
       await openApp('');
     } catch (e) {
@@ -2473,7 +2490,50 @@ function showPicker() {
   });
 }
 
+/** Что показать в поле START. Своя дата, если она уже есть на этом
+ *  устройстве, иначе ближайший понедельник. Понедельник, а не
+ *  сегодня: недели трека идут понедельник→воскресенье, и старт
+ *  в середине недели разъезжает их со всем календарём (§12.7-ter). */
+function startDefault() {
+  try { if (!Person.p) Person.loadLocal(); } catch (e) { /* нечего читать */ }
+  const own = Person.p ? Person.val('start') : '';
+  return isDay(own) ? own : nextMonday();
+}
+
+/** Записать выбранную дату — ДО открытия приложения.
+ *
+ *  Порядок здесь не свободный. `openApp()` зовёт `Person.load()`,
+ *  а тот при отсутствии неотправленных правок отдаёт победу облаку
+ *  (§13.2-ter). Значит поставить дату только локально мало: первая
+ *  же загрузка вернула бы пустую из облака. Поэтому здесь полный
+ *  круг — load, set, push, — и `openApp()` следом читает уже
+ *  согласованное состояние.
+ *
+ *  Не бросает: не доехало — человек всё равно попадает внутрь
+ *  и меняет дату в SETTINGS. Первый экран не то место, где стоит
+ *  ронять вход из-за необязательного поля. */
+async function applyStartFromPicker() {
+  const el = $('#pickStart');
+  const v = el ? el.value : '';
+  if (!isDay(v)) return false;
+  try {
+    await Person.load(Auth.sb, Auth.user);
+    if (Person.val('start') === v) return true;
+    Person.set('start', v);
+    await Person.push(Auth.sb, Auth.user);
+    return true;
+  } catch (e) {
+    console.warn('start из выбора трека не сохранился', e);
+    return false;
+  }
+}
+
 /* ══════════════════ RANK ══════════════════ */
+/* Со скольких человек таблица перестаёт быть насмешкой (§13.3).
+   Три, а не два: на двоих «первый из двух» — это всё ещё про то,
+   что вас двое, а не про место. Число здесь одно и названо, чтобы
+   его можно было поменять одной правкой, а не искать по вёрстке. */
+const RANK_MIN = 3;
 function rRank() {
   const box = $('#v-rank');
   box.innerHTML = `<div class="section-h"><h2>RANK</h2><span class="rule"></span></div>
@@ -2489,6 +2549,39 @@ function rRank() {
         h += `<div class="card"><p class="sm muted" style="margin:0">Рейтинг не загрузился: ${esc(error.message)}</p></div>`;
       } else if (!data || !data.length) {
         h += `<div class="empty"><div class="ic">${ICONS.rank}</div>Пока пусто. Первая же закрытая задача поставит тебя в таблицу.</div>`;
+      } else if (data.length < RANK_MIN) {
+        /* МАЛЫЕ ЧИСЛА (§13.3). Таблица из одного человека на первом
+           месте — это не рейтинг, а насмешка, и увидит её ровно тот,
+           кто пришёл первым по ссылке. Три выхода §13.3 называла:
+           прятать вкладку, показывать «N-й из M», сравнивать с планом.
+           Выбран третий, и вкладка НЕ прячется.
+
+           Прятать нельзя по двум причинам. Вкладка живёт в таббаре,
+           и исчезающий пункт меняет раскладку под пальцем — та же
+           беда, из-за которой §12.2-bis назвала семь вкладок потолком.
+           И главное: спрятанный раздел ничего не говорит, а сравнение
+           с планом полезно с первого дня и не зависит от того, пришёл
+           кто-то ещё или нет.
+
+           Число участников при этом НЕ скрывается: прятать его
+           значило бы делать вид, что тут людно. */
+        const t = Store.totals();
+        const wk = typeof currentWeek === 'function' ? currentWeek() : 1;
+        const all = (typeof WEEKS !== 'undefined' && WEEKS.length) ? WEEKS.length : 52;
+        const plan = META && META.totalHours ? META.totalHours : 0;
+        h += `<div class="card">
+          <p class="sm muted" style="margin:0 0 12px">Пока сравнивать не с кем: участников ${data.length}.
+             Ниже — сравнение с планом, а не с людьми.</p>
+          <div class="grid g3">
+            ${stat(wk + ' / ' + all, 'НЕДЕЛЯ ПО КАЛЕНДАРЮ')}
+            ${stat(t.closed + ' / ' + all, 'НЕДЕЛЬ ЗАКРЫТО')}
+            ${stat(Math.round(t.pct) + '%', 'ПРОГРЕСС')}
+            ${stat(t.hoursFact + (plan ? ' / ' + plan : ''), 'ЧАСОВ')}
+            ${stat(t.streak, 'СЕРИЯ')}
+            ${stat(t.tasksDone, 'ЗАДАЧ ЗАКРЫТО')}
+          </div>
+          <p class="tiny dim" style="margin:12px 0 0">Таблица включится, когда наберётся ${RANK_MIN} участника.</p>
+        </div>`;
       } else {
         h += `<div class="card"><div class="tbl-wrap"><table class="t rank"><thead><tr>
             <th style="width:44px">#</th><th>PLAYER</th><th style="width:64px">PCT</th>

@@ -258,7 +258,26 @@ code, pre, .mono { font-family: var(--mono); }
 .gate-ok  { color: var(--cyan); border-color: color-mix(in srgb, var(--cyan) 34%, transparent); }
 .gate-err { color: var(--red);  border-color: color-mix(in srgb, var(--red) 40%, transparent); }
 .btn.wide { width: 100%; justify-content: center; }
+/* Первый экран (§13.3). Ширина карточки прежняя: экран отвечает
+   на «что это», а не продаёт, поэтому он остаётся той же формы,
+   что и форма входа, — человек не должен думать, что попал
+   на другой сайт. */
+.gate-lead { font-size: 13.5px; line-height: 1.6; color: var(--txt-2); margin: 0 0 14px; text-align: left; }
+.gate-list { list-style: none; margin: 0 0 16px; padding: 0; text-align: left; }
+.gate-list li {
+  font-size: 12.5px; line-height: 1.5; color: var(--txt-2);
+  padding: 7px 0 7px 14px; position: relative;
+  border-top: 1px solid color-mix(in srgb, var(--cyan) 12%, transparent);
+}
+.gate-list li:first-child { border-top: 0; }
+.gate-list li::before {
+  content: ''; position: absolute; left: 0; top: 14px;
+  width: 5px; height: 5px; background: var(--cyan); opacity: .7;
+}
+.gate-list b { color: var(--txt-1); font-weight: 600; }
+
 .gate-links { display: flex; justify-content: space-between; gap: 12px; margin-top: 14px; }
+.gate-links.one { justify-content: center; }
 .linkbtn {
   background: none; border: 0; padding: 2px 0; cursor: pointer;
   font-family: var(--sans); font-size: 12px; color: var(--txt-3);
@@ -844,6 +863,13 @@ details.acc > div { padding: 0 15px 15px; animation: expand .34s var(--ease) bac
 .picker-card { width: min(720px, 100%); animation: bootIn .7s var(--ease) backwards; }
 .picker-card .gate-title { text-align: center; }
 .picker-card .gate-note { text-align: center; margin-top: 8px; }
+/* Поле даты старта на экране выбора трека (§13.3). Стоит ПОД
+   карточками треков и намеренно не выглядит карточкой: это
+   настройка выбора, а не ещё один трек. */
+.pick-start { display: block; margin-top: 14px; text-align: left; }
+.pick-start > span { display: block; }
+.pick-start input { width: 100%; }
+.pick-start small { display: block; margin-top: 6px; }
 #pickerBody { display: grid; gap: 12px; margin-top: 20px;
   grid-template-columns: repeat(auto-fill, minmax(min(300px,100%), 1fr)); }
 .track { display: flex; gap: 14px; text-align: left; align-items: flex-start;
