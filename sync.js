@@ -82,9 +82,20 @@ const Sync = {
     }
   },
 
-  /** Отправить локальную версию в облако. */
+  /** Отправить локальную версию в облако.
+
+      Первая строка — не мелочь. `pagehide` зовёт push() напрямую,
+      а отложенная отправка от последнего клика могла остаться
+      в очереди: две записи подряд с разрывом почти в ноль. Пока
+      сервер границы не имел, это было незаметно; с блоком 14.1
+      вторая получала бы отказ. Правило §9 требует, чтобы клиент
+      считал по ТОМУ ЖЕ правилу, а не полагался на повтор, поэтому
+      честный клиент теперь физически не может слать чаще: любая
+      прямая отправка гасит отложенную. */
   async push() {
     if (!this.user) return;
+    clearTimeout(this._timer);
+    this._timer = null;
     this.set('busy');
     try {
       const payload = Object.assign({}, Store.d);
@@ -101,6 +112,13 @@ const Sync = {
       this.pushStats();
       return true;
     } catch (e) {
+      /* «Слишком часто» — не сбой, а просьба подождать (блок 14.1).
+         Показать это красным значило бы напугать человека там, где
+         ничего не потеряно: правка лежит в localStorage и уедет
+         следующей попыткой. Молча проглотить тоже нельзя — тогда
+         отправка не состоится вовсе. Поэтому состояние остаётся
+         рабочим, а отправка переносится. */
+      if (isRateLimit(e)) { this.set('ok', ''); this.schedule(); return false; }
       this.set('err', e.message || String(e));
       return false;
     }
@@ -122,6 +140,7 @@ const Sync = {
         current_week: typeof currentWeek === 'function' ? currentWeek() : 1,
         updated_at: new Date().toISOString()
       }, { onConflict: 'user_id,roadmap_id' });
+      if (isRateLimit(error)) { setTimeout(() => this.pushStats(), WRITE_GAP_MS + 500); return; }
       if (error) console.warn('public_stats', error.message);
     } catch (e) {
       console.warn('public_stats', e);

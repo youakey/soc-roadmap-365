@@ -378,8 +378,39 @@ const Store = {
   },
 
   /* ---------- экспорт / импорт ---------- */
+  /* ---------- резервная копия (§8) ----------
+
+     ДО 02.09.2026 ЭТО БЫЛ НЕ БЭКАП. Выгружался только `Store.d`,
+     то есть `progress.payload`. За бортом молча оставались:
+       · `person.params` — все 22 поля анкеты (§13.2-bis), они живут
+         в своём ключе localStorage и в своей таблице;
+       · словарь ANKI — своя таблица и свой ключ. Кнопка EXPORT
+         на вкладке ANKI бэкапом не является: она собирает файл
+         ДЛЯ Anki, только из `ready`/`exported`, без `raw`, без
+         `source`, `week` и `status`. Восстановить из него нельзя.
+     То есть человек, потерявший аккаунт, восстанавливал прогресс
+     и терял анкету со словарём, ничего об этом не узнав.
+
+     `ownerId` В ВЫГРУЗКУ НЕ КЛАДЁТСЯ, и это тоже починка, а не
+     оформление. Он был там, а `Sync.init()` при чужом ownerId зовёт
+     `Store.reset()`: восстановление копии в ДРУГОЙ аккаунт стирало
+     только что загруженное — молча, с зелёной галочкой. Привязка
+     кеша к аккаунту — свойство устройства, а не данных человека.
+
+     Формат конвертом, со своей версией. Плоские копии старого
+     образца ЧИТАЮТСЯ по-прежнему (см. `import`): импортёр, который
+     отказывается от уже скачанных файлов, — это та же потеря
+     данных, что и сервер, обрезающий незнакомое поле (§13.2-quater). */
+  backup() {
+    const box = { v: 2, at: new Date().toISOString(), progress: Object.assign({}, this.d) };
+    delete box.progress.ownerId;
+    if (typeof Person !== 'undefined' && Person.p) box.person = Person.p;
+    if (typeof Vocab !== 'undefined' && Array.isArray(Vocab.rows)) box.vocab = Vocab.rows;
+    return box;
+  },
+
   export() {
-    const blob = new Blob([JSON.stringify(this.d, null, 2)], { type: 'application/json' });
+    const blob = new Blob([JSON.stringify(this.backup(), null, 2)], { type: 'application/json' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
     a.download = `soc365-backup-${iso(new Date())}.json`;
@@ -395,9 +426,35 @@ const Store = {
     if (!obj || typeof obj !== 'object' || Array.isArray(obj)) {
       throw new Error('Не похоже на резервную копию');
     }
-    this.d = pickShape(fresh(), obj);
+    /* Конверт нового образца узнаётся по своему полю, а не по номеру
+       версии: файл без `progress` — это плоская копия старого образца,
+       и она обязана читаться как раньше. */
+    const boxed = own(obj, 'progress', null);
+    const prog = (boxed && typeof boxed === 'object' && !Array.isArray(boxed)) ? boxed : obj;
+
+    this.d = pickShape(fresh(), prog);
+    this.d.ownerId = null;          // привязку к аккаунту ставит Sync.init()
     if (!this.d.createdAt) this.d.createdAt = new Date().toISOString();
     this.save();
+
+    /* Анкета и словарь — только из конверта: в плоской копии их нет,
+       и трогать уже живущие на устройстве нельзя. Разбор идёт через
+       собственные защитные разборщики (`Person.parse`, `Vocab.shape`),
+       а не через Object.assign: файл приходит со стороны (§11.5). */
+    if (boxed) {
+      const per = own(obj, 'person', null);
+      if (per && typeof per === 'object' && !Array.isArray(per) && typeof Person !== 'undefined') {
+        Person.p = Person.parse(per);
+        Person.dirty = true;        // сервер этого ещё не видел
+        Person.saveLocal();
+      }
+      const voc = own(obj, 'vocab', null);
+      if (Array.isArray(voc) && typeof Vocab !== 'undefined') {
+        Vocab.rows = voc.map(r => Vocab.shape(r)).filter(r => r.word);
+        Vocab.rows.forEach(r => { r.dirty = 1; });   // уедет следующей отправкой
+        Vocab.save();
+      }
+    }
   },
   reset() { localStorage.removeItem(KEY); this.load(); }
 };

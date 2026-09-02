@@ -400,6 +400,19 @@ const Auth = {
     if (/User already registered|already been registered/i.test(m)) return 'Такая почта уже зарегистрирована. Войди или восстанови пароль.';
     if (/Password should be at least/i.test(m)) return 'Пароль — минимум 6 символов.';
     if (/Unable to validate email|invalid format/i.test(m)) return 'Почта выглядит неправильно.';
+    /* Два РАЗНЫХ предела, и до 02.09.2026 они давали одно сообщение.
+       `over_request_rate_limit` — это запросы с одного IP, там минута
+       и правда помогает. `over_email_send_rate_limit` — это письма,
+       и на встроенной отправке их ДВА В ЧАС на весь проект (проверено
+       по панели Rate Limits и по документации, §8). Совет «подожди
+       минуту» там — ложь: человек ждёт, пробует снова, снова не
+       получает письмо и уходит, решив, что сайт сломан. Первое
+       впечатление тратится один раз (§13.4).
+       Механику не объясняем (§3.8) — говорим, что делать. */
+    const code = (err && (err.code || err.error_code)) || '';
+    if (/over_email_send_rate_limit/i.test(code + ' ' + m) || /email rate limit/i.test(m)) {
+      return 'Сейчас письмо отправить не получилось. Попробуй через час.';
+    }
     if (/rate limit|too many requests|after \d+ seconds/i.test(m)) return 'Слишком часто. Подожди минуту и попробуй снова.';
     if (/duplicate key value.*profiles_nickname/i.test(m)) return 'Такой ник уже занят.';
     if (/Failed to fetch|NetworkError/i.test(m)) return 'Нет связи с сервером. Проверь интернет.';

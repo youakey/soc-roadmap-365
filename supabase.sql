@@ -886,3 +886,324 @@ select p.proname,
        position('public.person' in pg_get_functiondef(p.oid)) > 0 as reads_person
 from pg_proc p join pg_namespace n on n.oid = p.pronamespace
 where n.nspname = 'public' and p.proname = 'public_stats_guard';
+
+
+-- ═══════════════════════════════════════════════════════════════
+-- 14. ГРАНИЦЫ ЗАПИСИ ДЛЯ ЧУЖИХ ЛЮДЕЙ (§8)
+-- ═══════════════════════════════════════════════════════════════
+--
+-- Добавлено 02.09.2026. Схема НЕ меняется: ни одной новой таблицы,
+-- ни одной новой колонки, ни одного drop (§3.9). Меняются три
+-- функции-стража и добавляются две вспомогательные.
+--
+-- ПОРЯДОК ВЫПОЛНЕНИЯ. Тела в `$$ … $$`, а SQL Editor рвёт их
+-- по внутренним `;` (§9). КАЖДЫЙ `create or replace function`
+-- ниже — ОТДЕЛЬНЫЙ Run. После выполнения сверяться с каталогом
+-- (`pg_proc`, `pg_trigger`), а не с панелью результатов: панель
+-- показывает СТАРЫЙ результат, и провал выглядит как успех.
+--
+-- БЛОК 13 ОТДЕЛЬНЫМ RUN НЕ НУЖЕН. Сверка каталогом 02.09.2026
+-- показала, что он не выполнялся никогда: живой `public_stats_guard`
+-- считал `elapsed` от `r_start` и слова `person` в теле не имел
+-- вовсе. Его логика целиком вошла в 14.4 ниже — то есть блок 13
+-- закрывается этим блоком, а не в дополнение к нему.
+
+
+-- ── 14.1. Частота записи: одно правило на проект ──
+--
+-- §8: «клиент шлёт раз в 2.5 секунды после изменения, но это можно
+-- обойти». Правило живёт в ОДНОЙ функции, а не копией в каждом
+-- страже. Это прямое следствие §12.1-ter: там одно правило обхода
+-- было написано дважды и поправлено один раз, и заход ушёл на поиск.
+--
+-- ПОРОГ — 1 СЕКУНДА, и он взят из клиента, а не из круглого числа.
+-- Самая частая отправка в коде — `Person.schedule()`, 1500 мс;
+-- `Sync.schedule()` и `Vocab.schedule()` — 2500 мс. Секунда лежит
+-- ниже самой тесной из них с запасом в треть — на дрожание сети
+-- и расхождение часов. Граница, которая режет честного клиента,
+-- будет снята первым же раздражением и не защитит ни от кого.
+--
+-- ОТВЕРГАТЬ, А НЕ ОТБРАСЫВАТЬ. Тихо проигнорировать запись значит
+-- потерять прогресс человека при зелёной галочке — ровно тот
+-- почерк, за который платила §12.1-ter: два правдоподобных
+-- признака и ни одного красного. Простое исключение тоже плохо:
+-- честный клиент словил бы красную ошибку на ровном месте.
+-- Поэтому отказ явный и ПОМЕЧЕННЫЙ: `hint = 'RATE_LIMIT'` —
+-- по нему клиент отличает «слишком часто» от настоящей ошибки
+-- и повторяет отправку вместо того, чтобы показать сбой
+-- (см. `Sync.push`, `Person.push`).
+--
+-- ЧЕГО ЭТО НЕ ДЕЛАЕТ, И ЭТО НАДО СКАЗАТЬ ВСЛУХ. Порог ограничивает
+-- ЧАСТОТУ переписывания одной строки, а не общий объём запросов.
+-- Настоящий заслон от того, кто долбит REST в сто потоков, живёт
+-- на краю сети, а не в базе, — это ещё один довод к переезду
+-- на Cloudflare Pages (§8, §11.7, §13.3), а не замена ему.
+create or replace function public.rate_gate(prev timestamptz)
+returns void
+language plpgsql
+as $$
+begin
+  if prev is not null and prev > now() - interval '1 second' then
+    raise exception 'Слишком частая запись: не чаще одного раза в секунду'
+      using errcode = 'P0001', hint = 'RATE_LIMIT';
+  end if;
+end $$;
+
+
+-- ── 14.2. Длина текста внутри progress.payload ──
+--
+-- §8 требовал ограничить длины текстовых полей на уровне БД.
+-- Для `vocab` и `person` это сделано давно (блоки 10.2 и 12),
+-- для `payload` — нет: заметки недели, названия компаний и заметки
+-- откликов не ограничены ничем, кроме общего мегабайта.
+--
+-- ПРАВИЛО ОДНО НА ВЕСЬ payload, И ЭТО НЕ ЛЕНЬ. Список имён полей
+-- на сервере запрещён §11.5, и по хорошей причине: набор полей
+-- растёт, а сервер, знающий старый список, обрежет новое поле
+-- молча — §13.2-quater. Поэтому проверяется НЕ «поле notes»,
+-- а инвариант: ни одна строка внутри payload не длиннее того,
+-- что человек способен ввести в интерфейсе. Новое поле попадает
+-- под правило само, без единой правки сервера.
+--
+-- ФУНКЦИЯ ТОЛЬКО СМОТРИТ. Она ничего не переписывает и ничего
+-- не выбрасывает: хранимые значения трогать нельзя (§3.8 —
+-- статусы недели по-русски, ключи `days`, `metrics`, `langs`,
+-- `apps[].cat`), а выброшенный незнакомый ключ — это потеря
+-- данных. Возвращает описание первого нарушения или NULL.
+--
+-- ЧИСЛА: 2000 символов на строку, 64 на ключ. Откуда:
+--   · самое длинное, что вводится руками, — заметка недели
+--     (textarea «Где застрял, что переношу»). 2000 символов —
+--     это страница текста; 52 такие заметки дают 104 КБ при
+--     пределе payload в 1 МиБ, то есть запас на порядок;
+--   · `company`, `role`, `cat`, `note` приходят из `prompt()` —
+--     одна строка, далеко не 2000;
+--   · ключи payload — это даты («2026-08-03», 10 символов),
+--     номера недель и имена блоков распорядка; 64 не жмёт
+--     ничего живого и вдвое шире 32 у `person.params`, потому
+--     что ключи payload могут стать составными;
+--   · замер по живой базе 02.09.2026: самая длинная строка
+--     во всём payload владельца — 24 символа, самый длинный
+--     ключ — 10. Запас 83× и 6.4×.
+create or replace function public.jsonb_text_limits(j jsonb, max_val int, max_key int)
+returns text
+language sql
+stable
+as $$
+  with recursive walk(v, k) as (
+    select j, ''::text
+    union all
+    select x.value, x.kk
+    from walk w
+    cross join lateral (
+      select value, key
+        from jsonb_each(case when jsonb_typeof(w.v) = 'object' then w.v else '{}'::jsonb end)
+      union all
+      select value, ''::text
+        from jsonb_array_elements(case when jsonb_typeof(w.v) = 'array' then w.v else '[]'::jsonb end)
+    ) x(value, kk)
+  )
+  select msg from (
+    select 'ключ длиной ' || char_length(k) || ' символов, предел ' || max_key as msg
+      from walk where char_length(k) > max_key
+    union all
+    select 'строка длиной ' || char_length(v #>> '{}') || ' символов, предел ' || max_val
+      from walk where jsonb_typeof(v) = 'string' and char_length(v #>> '{}') > max_val
+  ) t limit 1
+$$;
+
+
+-- ── 14.2-bis. Обе вспомогательные функции убраны из REST ──
+-- PostgREST отдаёт любую функцию в `public` как /rpc/<имя>.
+-- Ни `rate_gate`, ни `jsonb_text_limits` наружу не нужны:
+-- их зовут только стражи, а те работают от владельца схемы.
+-- Отдельный Run не нужен, тел в `$$` здесь нет.
+revoke all on function public.rate_gate(timestamptz) from public, anon, authenticated;
+revoke all on function public.jsonb_text_limits(jsonb, int, int) from public, anon, authenticated;
+
+
+-- ── 14.3. progress_guard: частота + размер + длины ──
+--
+-- НАЙДЕНО ПО ДОРОГЕ И ПОЧИНЕНО ЗДЕСЬ ЖЕ: `updated_at` в `progress`
+-- приходил от клиента и принимался как есть. Само по себе это
+-- безобидно (поле нигде не читается), но ограничение частоты
+-- по такому полю обходилось бы одной подменой значения в запросе —
+-- то есть граница была бы декоративной. `public_stats_guard`
+-- закрыл ровно это давно и с той же формулировкой: «время ставит
+-- сервер». Теперь так же и здесь.
+--
+-- ПОРЯДОК ПРОВЕРОК ВНУТРИ ВАЖЕН: сначала частота, потом размер,
+-- потом обход по длинам. Обход стоит тем дороже, чем толще payload,
+-- и платить за него ради запроса, который всё равно будет отвергнут
+-- как слишком частый, не за чем.
+create or replace function public.progress_guard()
+returns trigger
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  bad text;
+begin
+  if auth.uid() is not null then
+    new.user_id := auth.uid();
+  end if;
+
+  if tg_op = 'UPDATE' then
+    perform public.rate_gate(old.updated_at);
+  end if;
+  new.updated_at := now();
+
+  if new.payload is null then
+    new.payload := '{}'::jsonb;
+  end if;
+
+  if pg_column_size(new.payload) > 1048576 then
+    raise exception 'payload too large: % bytes, limit 1 MiB', pg_column_size(new.payload)
+      using errcode = '54000';
+  end if;
+
+  bad := public.jsonb_text_limits(new.payload, 2000, 64);
+  if bad is not null then
+    raise exception 'progress.payload: %', bad using errcode = '22001';
+  end if;
+
+  return new;
+end $$;
+
+
+-- ── 14.4. public_stats_guard: прежние границы + персональный старт + частота ──
+--
+-- Эта версия объединяет ТРИ вещи и заменяет собой блок 13:
+--   1) границы рейтинга блока 9.3 (они живут в базе с самого начала);
+--   2) персональную дату старта §12.7 — тот самый блок 13, который
+--      по каталогу не выполнялся никогда;
+--   3) ограничение частоты §8.
+create or replace function public.public_stats_guard()
+returns trigger
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  r_weeks int;
+  r_hours numeric;
+  r_start date;
+  p_start date;
+  elapsed int;
+begin
+  if auth.uid() is not null then
+    new.user_id := auth.uid();
+  end if;
+
+  if tg_op = 'UPDATE' then
+    perform public.rate_gate(old.updated_at);
+  end if;
+  new.updated_at := now();
+
+  select total_weeks, total_hours, start_date
+    into r_weeks, r_hours, r_start
+  from public.roadmaps where id = new.roadmap_id;
+
+  if r_weeks is null then
+    raise exception 'unknown roadmap: %', new.roadmap_id using errcode = '23503';
+  end if;
+
+  new.weeks_closed := least(greatest(new.weeks_closed, 0), r_weeks);
+  new.current_week := least(greatest(new.current_week, 1), r_weeks);
+  new.hours_fact   := least(greatest(new.hours_fact, 0), r_hours * 3);
+
+  -- Персональная точка отсчёта (§12.7). Читается защитно и НИКОГДА
+  -- не бросает: `params` — свободный jsonb, клиент границей не
+  -- является (§11.1), туда можно положить что угодно одним curl.
+  -- Прямой `::date` уронил бы КАЖДУЮ запись в рейтинг у такого
+  -- аккаунта, то есть чужая опечатка стала бы отказом в сервисе
+  -- самому себе. Форма проверяется регуляркой, разбор идёт через
+  -- `to_date`, который на несуществующем дне не падает.
+  select case
+           when pr.params ->> 'start' ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'
+             then to_date(pr.params ->> 'start', 'YYYY-MM-DD')
+           else null
+         end
+    into p_start
+  from public.person pr
+  where pr.id = new.user_id;
+
+  elapsed := greatest((current_date - coalesce(p_start, r_start))::int + 1, 1);
+  new.streak := least(greatest(new.streak, 0), elapsed);
+
+  new.pct := least(greatest(new.pct, 0), 100);
+
+  return new;
+end $$;
+
+
+-- ── 14.5. person_guard: прежние границы + частота ──
+-- Тело слово в слово прежнее (блок 12), добавлены три строки
+-- частоты. Порог тот же — 1 секунда против дебаунса 1500 мс.
+create or replace function public.person_guard()
+returns trigger
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  k text;
+  v jsonb;
+  n int := 0;
+begin
+  if auth.uid() is not null then
+    new.id := auth.uid();
+  end if;
+
+  if tg_op = 'UPDATE' then
+    perform public.rate_gate(old.updated_at);
+  end if;
+  new.updated_at := now();
+
+  if pg_column_size(new.params) > 8192 then
+    raise exception 'person.params больше 8 КиБ' using errcode = '22001';
+  end if;
+
+  for k, v in select * from jsonb_each(new.params) loop
+    n := n + 1;
+    if char_length(k) > 32 then
+      raise exception 'person.params: длинное имя параметра' using errcode = '22001';
+    end if;
+    if jsonb_typeof(v) not in ('string', 'number', 'boolean') then
+      raise exception 'person.params[%]: только строка, число или булево', k using errcode = '22023';
+    end if;
+    if jsonb_typeof(v) = 'string' and char_length(v #>> '{}') > 400 then
+      raise exception 'person.params[%]: строка длиннее 400 символов', k using errcode = '22001';
+    end if;
+  end loop;
+
+  if n > 64 then
+    raise exception 'person.params: больше 64 параметров' using errcode = '22001';
+  end if;
+
+  return new;
+end $$;
+
+
+-- ── 14.6. Почему `vocab` В ЭТОТ СПИСОК НЕ ВОШЁЛ ──
+--
+-- Соблазн был: тумблер один, таблиц четыре, поставить везде проще,
+-- чем объяснять исключение. Но правило шире дефекта — это ложное
+-- спокойствие (§9), и здесь оно было бы ровно таким.
+--
+-- Первое. У `vocab` НЕТ колонки `updated_at` вовсе (проверено
+-- каталогом 02.09.2026: id, user_id, deck, word, meaning, example,
+-- source, week, status, created_at, exported_at). Гейт потребовал бы
+-- новой колонки и штампа на каждую строку — а `Vocab.push()` шлёт
+-- пачками до 200 строк одним upsert (§10).
+--
+-- Второе, и главное. Гейт защищает от НЕОГРАНИЧЕННОГО примитива
+-- записи. У `progress`, `public_stats` и `person` он именно такой:
+-- одна строка на человека, которую можно переписывать бесконечно.
+-- У `vocab` объём уже ограничен КОНСТРУКЦИЕЙ — 20 000 карточек
+-- на аккаунт (блок 10.3) и длины полей (`vocab_sane`, блок 10.2).
+-- То есть гейт на `vocab` выглядел бы защитой, а защищал бы от
+-- того, от чего уже защищено, ценой колонки и штампа на каждую
+-- строку пачки. Это не осторожность, а именно тот случай, когда
+-- лишнее правило создаёт видимость.

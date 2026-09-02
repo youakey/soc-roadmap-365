@@ -496,6 +496,11 @@ const Person = {
    *  и заводить отметку по тем же часам, что у облака. */
   async push(sb, user) {
     if (!sb || !user) return false;
+    /* Гасим отложенную отправку по той же причине, что и в Sync.push:
+       прямой вызов рядом с ждущим таймером давал две записи подряд,
+       а с блоком 14.1 вторая получила бы отказ по частоте. */
+    clearTimeout(this._timer);
+    this._timer = null;
     try {
       const { data, error } = await sb.from('person')
         .upsert({ id: user.id, params: this.p }, { onConflict: 'id' })
@@ -510,6 +515,7 @@ const Person = {
       /* Не доехало — правка остаётся неотправленной, и это надо
          помнить: без `dirty` следующая удачная загрузка сочла бы
          облако новее и стёрла бы напечатанное без сети. */
+      if (isRateLimit(e)) { this.schedule(sb, user); return false; }
       console.warn('person push', e && e.message ? e.message : e);
       return false;
     }

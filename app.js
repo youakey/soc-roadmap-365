@@ -1556,7 +1556,7 @@ function rYear() {
         <table class="t"><thead><tr><th>Метрика</th><th style="width:74px">Цель</th><th style="width:104px">Факт</th></tr></thead><tbody>
         ${Object.keys(m.targets).map(k => `<tr>
           <td>${LBL[k]}</td><td class="dim">${m.targets[k]}</td>
-          <td><input type="text" value="${esc(mv[k] || '')}" data-ms="${m.w}" data-mk="${k}" style="padding:5px 8px;font-size:13px"></td>
+          <td><input type="text" maxlength="${TEXT_MAX}" value="${esc(mv[k] || '')}" data-ms="${m.w}" data-mk="${k}" style="padding:5px 8px;font-size:13px"></td>
         </tr>`).join('')}
         </tbody></table>
       </div></details>`;
@@ -1671,7 +1671,7 @@ function weekCard(w, isNow) {
         <select data-f-rating="${w.w}"><option value="">—</option>${[1,2,3,4,5]
           .map(o => `<option${String(o) === String(s.rating) ? ' selected' : ''}>${o}</option>`).join('')}</select></label>
       <label class="fld"><span>BLOCKERS / NOTES</span>
-        <textarea data-f-notes="${w.w}" placeholder="Где застрял, что переношу...">${esc(s.notes)}</textarea></label>
+        <textarea data-f-notes="${w.w}" maxlength="${TEXT_MAX}" placeholder="Где застрял, что переношу...">${esc(s.notes)}</textarea></label>
     </div>
   </div>`;
 }
@@ -1778,7 +1778,7 @@ function rCareer() {
           .map(([k, l]) => `<button class="fbtn${s[k] ? ' on' : ''}" data-repo="${r.id}" data-rk="${k}">${s[k] ? '[x] ' : '[ ] '}${l}</button>`).join('')}
       </div>
       <label class="fld mt"><span>REPO URL</span>
-        <input type="url" value="${esc(s.url)}" data-repo-url="${r.id}" placeholder="https://github.com/..."></label>
+        <input type="url" maxlength="${TEXT_MAX}" value="${esc(s.url)}" data-repo-url="${r.id}" placeholder="https://github.com/..."></label>
     </div>`;
   });
 
@@ -1902,6 +1902,15 @@ function addAppPrompt() {
   const cats = appCats();
   const cat = prompt('Категория:\n' + cats.join(' / '), cats[0]) || cats[0];
   const note = prompt('Заметка (необязательно):') || '';
+  /* Единственные поля payload, которые приходят не из <input>, а из
+     prompt(): у окна браузера maxlength нет. Обрезать молча нельзя —
+     это потеря того, что человек напечатал; поэтому отказ вслух.
+     Граница ровно та же, что у сервера (блок 14.2), и берётся
+     из одной константы, а не переписывается числом. */
+  if ([company, role, cat, note].some(v => String(v).length > TEXT_MAX)) {
+    toast('Слишком длинно: предел ' + TEXT_MAX + ' символов');
+    return;
+  }
   Store.addApp({ company, role, cat, note, status: 'Отправлен' });
   achCheck();                                     // «первый отклик отправлен»
   Sync.schedule(); rCareer(); renderAll(); toast('Отклик добавлен');
@@ -2156,7 +2165,7 @@ function rMore() {
       ${Person.cond('lang2') ? `<p class="tiny dim" style="margin:0 0 10px">${esc(l.pl)}</p>` : ''}
       <div class="grid g2">
         <label class="fld" style="margin:0"><span>EF SET</span>
-          <input type="text" value="${esc(s.efset)}" data-lang="${l.q}" data-lk="efset" placeholder="${l.target}"></label>
+          <input type="text" maxlength="${TEXT_MAX}" value="${esc(s.efset)}" data-lang="${l.q}" data-lk="efset" placeholder="${l.target}"></label>
         ${ankiOff
           ? `<label class="fld" style="margin:0"><span>Anki EN (цель ${l.anki})</span>
               <input type="number" min="0" inputmode="numeric" value="${manual || ''}"
