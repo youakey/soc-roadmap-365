@@ -107,7 +107,7 @@ const SFX_FILES = ['press', 'pulse', 'done', 'week', 'ach', 'login', 'boot', 'op
  *  чтобы лестница уровней осталась ЗА КОДОМ, а не за файлами.
  *  Одно число на весь банк: подстройка громкости отдельного голоса
  *  живёт в `g` его строки ниже. */
-const SFX_BASE = 0.72;
+const SFX_BASE = 0.45;
 
 /** Голос → сэмпл. `r` — скорость воспроизведения: она же высота,
  *  и она превращает десять файлов в девятнадцать различимых голосов
@@ -504,7 +504,7 @@ const Sound = {
     const ctx = this._live(SND.MARK); if (!ctx || !this._afford(1)) return false;
     const G = this._gain(SND.MARK); this._wet(0.16);
     const step = Math.min(9, Math.max(0, 10 - left));
-    this._tone({ f: 900 + step * 62, dur: 0.045, type: 'square', g: 0.11, lp: 2400, q: 0.7, lvlGain: G });
+    this._tone({ f: 900 + step * 62, dur: 0.045, type: 'square', g: 0.055, lp: 2400, q: 0.7, lvlGain: G });
     return true;
   },
 
@@ -752,8 +752,8 @@ const Sound = {
   grade(known) {
     const ctx = this._live(SND.ACT); if (!ctx || !this._afford(1)) return false;
     const G = this._gain(SND.ACT); this._wet(0.26);
-    if (known) this._tone({ f: 784, f2: 1318.51, dur: 0.09, type: 'triangle', g: 0.20, lp: 3800, det: 5, lvlGain: G });
-    else       this._tone({ f: 440, f2: 311.13, dur: 0.13, type: 'triangle', g: 0.18, lp: 2200, det: 5, lvlGain: G });
+    if (known) this._tone({ f: 784, f2: 1318.51, dur: 0.09, type: 'triangle', g: 0.10, lp: 3800, det: 5, lvlGain: G });
+    else       this._tone({ f: 440, f2: 311.13, dur: 0.13, type: 'triangle', g: 0.09, lp: 2200, det: 5, lvlGain: G });
     return true;
   },
 
@@ -764,15 +764,15 @@ const Sound = {
     const ctx = this._live(SND.ACT); if (!ctx || !this._afford(2)) return false;
     const G = this._gain(SND.ACT); this._wet(0.3);
     if (kind === 'start') {
-      this._tone({ f: 330, f2: 660, dur: 0.14, type: 'sawtooth', g: 0.16, lp: 700, lp2: 3000, q: 3, det: 7, lvlGain: G });
+      this._tone({ f: 330, f2: 660, dur: 0.14, type: 'sawtooth', g: 0.08, lp: 700, lp2: 3000, q: 3, det: 7, lvlGain: G });
     } else if (kind === 'pause') {
-      this._tone({ f: 440, f2: 300, dur: 0.11, type: 'square', g: 0.11, lp: 1600, lvlGain: G });
+      this._tone({ f: 440, f2: 300, dur: 0.11, type: 'square', g: 0.055, lp: 1600, lvlGain: G });
     } else if (kind === 'resume') {
-      this._tone({ f: 300, f2: 520, dur: 0.11, type: 'square', g: 0.11, lp: 1900, lvlGain: G });
+      this._tone({ f: 300, f2: 520, dur: 0.11, type: 'square', g: 0.055, lp: 1900, lvlGain: G });
     } else if (kind === 'reset') {
-      this._noise({ f: 1200, f2: 300, dur: 0.14, g: 0.10, q: 0.9, lvlGain: G });
+      this._noise({ f: 1200, f2: 300, dur: 0.14, g: 0.05, q: 0.9, lvlGain: G });
     } else {                                   // add — добор минут
-      this._tone({ f: 880, f2: 1046.5, dur: 0.07, type: 'triangle', g: 0.13, lp: 3400, lvlGain: G });
+      this._tone({ f: 880, f2: 1046.5, dur: 0.07, type: 'triangle', g: 0.065, lp: 3400, lvlGain: G });
     }
     return true;
   },
